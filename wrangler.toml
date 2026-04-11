@@ -1,0 +1,21 @@
+name = "waichat"
+main = "src/worker/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Built React app served as static assets
+[assets]
+directory = "./dist"
+
+# Workers AI binding
+[ai]
+binding = "AI"
+remote = true
+
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "waichat-db"
+database_id = "6cac3c59-567a-46fe-8fc3-edd2b2fcdb5c"
+migrations_dir = "migrations"
