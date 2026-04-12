@@ -1,11 +1,26 @@
 export const AVAILABLE_MODELS = [
-  { id: "@cf/meta/llama-3.1-8b-instruct", name: "Llama 3.1 8B" },
-  { id: "@cf/mistral/mistral-7b-instruct-v0.2", name: "Mistral 7B" },
-  { id: "@cf/qwen/qwen1.5-14b-chat-awq", name: "Qwen 1.5 14B" },
+  { id: "@cf/google/gemma-4-26b-a4b-it", name: "Google Gemma 4 26B" },
+  { id: "@cf/moonshotai/kimi-k2.5", name: "Kimi K2.5" },
+  {
+    id: "@cf/meta/llama-4-scout-17b-16e-instruct",
+    name: "Meta Llama 4 Scout 17B",
+  },
+  { id: "@cf/qwen/qwen3-30b-a3b-fp8", name: "Qwen 3 30B" },
+  { id: "@cf/openai/gpt-oss-120b", name: "OpenAI GPT OSS 120B" },
+  {
+    id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    name: "Meta Llama 3.3 70B",
+  },
   {
     id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
     name: "DeepSeek R1 32B",
   },
+  { id: "@cf/qwen/qwq-32b", name: "Qwen QwQ 32B" },
+  {
+    id: "@cf/mistralai/mistral-small-3.1-24b-instruct",
+    name: "Mistral Small 3.1 24B",
+  },
+  { id: "@cf/openai/gpt-oss-20b", name: "OpenAI GPT OSS 20B" },
 ] as const;
 
 export type ModelId = (typeof AVAILABLE_MODELS)[number]["id"];
