@@ -6,15 +6,10 @@ interface SidebarProps {
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  onSettingsOpen: () => void;
 }
 
-export default function Sidebar({
-  conversations,
-  activeId,
-  onSelect,
-  onNew,
-  onDelete,
-}: SidebarProps) {
+export default function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onSettingsOpen }: SidebarProps) {
   return (
     <aside className="flex flex-col w-64 h-screen bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shrink-0">
       <div className="p-4 border-b border-gray-200 dark:border-gray-800">
@@ -28,9 +23,7 @@ export default function Sidebar({
 
       <nav className="flex-1 overflow-y-auto p-2 space-y-1">
         {conversations.length === 0 && (
-          <p className="text-xs text-gray-400 dark:text-gray-600 text-center mt-8">
-            No conversations yet
-          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-600 text-center mt-8">No conversations yet</p>
         )}
         {conversations.map((c) => (
           <div
@@ -44,10 +37,7 @@ export default function Sidebar({
           >
             <span className="truncate">{c.title}</span>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(c.id);
-              }}
+              onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
               className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity ml-2 shrink-0"
               aria-label="Delete conversation"
             >
@@ -57,10 +47,15 @@ export default function Sidebar({
         ))}
       </nav>
 
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">
-          WaiChat
-        </p>
+      <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
+        <p className="text-xs text-gray-400 dark:text-gray-600">WaiChat</p>
+        <button
+          onClick={onSettingsOpen}
+          className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          aria-label="Open settings"
+        >
+          ⚙️
+        </button>
       </div>
     </aside>
   );
