@@ -52,7 +52,12 @@ app.delete("/api/conversations/:id", async (c) => {
   return c.json({ success: true });
 });
 
-// Chat (streaming)
+// Title generation (used by local mode)
+app.post("/api/title", async (c) => {
+  const { message } = await c.req.json<{ message: string }>();
+  const title = await generateTitle(c.env.AI, message);
+  return c.json({ title });
+});
 app.post("/api/chat", async (c) => {
   const body = await c.req.json<ChatRequest>();
   const { conversation_id, model, messages, storage_mode } = body;
