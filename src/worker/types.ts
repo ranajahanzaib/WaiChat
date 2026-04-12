@@ -26,4 +26,5 @@ export interface ChatRequest {
   model: string;
   messages: { role: "user" | "assistant"; content: string }[];
   storage_mode: "cloud" | "local";
+  system_prompt?: string;
 }
