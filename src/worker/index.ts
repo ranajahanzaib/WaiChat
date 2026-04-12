@@ -13,12 +13,131 @@ import {
   saveMessage,
 } from "./db";
 
+function scoreModel(id: string): number {
+  let score = 0;
+
+  // Explicit boosts for known latest models
+  if (id.includes("gemma-4")) score += 100;
+  if (id.includes("kimi-k2")) score += 95;
+  if (id.includes("llama-4")) score += 90;
+  if (id.includes("qwen3")) score += 85;
+  if (id.includes("gpt-oss-120b")) score += 80;
+  if (id.includes("llama-3.3")) score += 75;
+  if (id.includes("deepseek-r1")) score += 70;
+  if (id.includes("qwq")) score += 65;
+  if (id.includes("mistral-small-3.1")) score += 60;
+  if (id.includes("gpt-oss-20b")) score += 55;
+
+  // General heuristics for everything else
+  const versionMatch = id.match(/(\d+)\.\d+/);
+  if (versionMatch) score += parseInt(versionMatch[1]) * 2;
+
+  const sizeMatch = id.match(/(\d+)b/i);
+  if (sizeMatch) score += parseInt(sizeMatch[1]);
+
+  if (id.includes("fast")) score += 3;
+  if (id.includes("fp8")) score += 2;
+
+  // Penalize old models
+  if (id.includes("v0.1") || id.includes("v0.2")) score -= 20;
+  if (id.includes("llama-2")) score -= 30;
+  if (id.includes("1.5b") || id.includes("0.5b") || id.includes("1.1b"))
+    score -= 15;
+  if (id.includes("lora")) score -= 10;
+
+  return score;
+}
+
+function formatModelName(id: string): string {
+  const parts = id.split("/");
+  const slug = parts[parts.length - 1];
+  const author = parts[parts.length - 2] ?? "";
+
+  // Known author prefixes to prepend
+  const authorMap: Record<string, string> = {
+    openai: "OpenAI",
+    meta: "Meta",
+    mistral: "Mistral",
+    "deepseek-ai": "DeepSeek",
+    qwen: "Qwen",
+    google: "Google",
+    microsoft: "Microsoft",
+  };
+
+  const formattedSlug = slug
+    .split("-")
+    .map((word) => {
+      if (/^\d/.test(word)) return word.toUpperCase();
+      const lower = word.toLowerCase();
+      const special: Record<string, string> = {
+        gpt: "GPT",
+        oss: "OSS",
+        fp8: "FP8",
+        awq: "AWQ",
+        llm: "LLM",
+        rag: "RAG",
+        qwq: "QwQ",
+        llama: "Llama",
+        mistral: "Mistral",
+        deepseek: "DeepSeek",
+        instruct: "Instruct",
+        fast: "Fast",
+        chat: "Chat",
+        vision: "Vision",
+        coder: "Coder",
+        distill: "Distill",
+      };
+      return special[lower] ?? word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+
+  const prefix = authorMap[author];
+  return prefix ? `${prefix} ${formattedSlug}` : formattedSlug;
+}
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("/api/*", cors());
 
-// Models
-app.get("/api/models", (c) => c.json(AVAILABLE_MODELS));
+// Models — fetched live from Cloudflare API
+app.get("/api/models", async (c) => {
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${c.env.CLOUDFLARE_ACCOUNT_ID}/ai/models/search?task=Text+Generation&per_page=100`,
+      {
+        headers: {
+          Authorization: `Bearer ${c.env.CLOUDFLARE_API_TOKEN}`,
+        },
+      },
+    );
+
+    if (!res.ok) throw new Error(`Cloudflare API error: ${res.status}`);
+
+    const data = (await res.json()) as {
+      result: {
+        id: string;
+        name: string;
+        description: string;
+        task: { name: string };
+      }[];
+      success: boolean;
+    };
+
+    if (data.result?.length > 0) {
+      console.log("[/api/models] sample:", JSON.stringify(data.result[0]));
+    }
+
+    const models = data.result
+      .map((m) => ({ id: m.name, name: formatModelName(m.name) }))
+      .sort((a, b) => scoreModel(b.id) - scoreModel(a.id));
+
+    return c.json(models);
+  } catch (e) {
+    console.error("[/api/models] error:", e);
+    // Fallback to hardcoded list if API call fails
+    return c.json(AVAILABLE_MODELS);
+  }
+});
 
 // Conversations
 app.get("/api/conversations", async (c) => {
@@ -135,7 +254,13 @@ async function saveAssistantMessage(
         if (trimmed === "data: [DONE]") continue;
         try {
           const json = JSON.parse(trimmed.slice(6));
-          if (json.response) fullContent += json.response;
+          let token: string | undefined;
+          if (typeof json.choices?.[0]?.delta?.content === "string") {
+            token = json.choices[0].delta.content;
+          } else if (typeof json.response === "string") {
+            token = json.response;
+          }
+          if (token) fullContent += token;
         } catch {}
       }
     }
