@@ -37,14 +37,25 @@ Click the button and Cloudflare handles everything automatically - no CLI, no co
 
 ### Manual (CLI)
 
+Requires a [Cloudflare account](https://dash.cloudflare.com/sign-up) and [Wrangler](https://developers.cloudflare.com/workers/wrangler/).
+
 ```bash
 git clone https://github.com/ranajahanzaib/waichat.git
 cd waichat
 pnpm install
-pnpm deploy
+
+# 1. Create your D1 database
+npx wrangler d1 create waichat-db
+
+# 2. Set up your local wrangler config
+cp wrangler.local.toml.example wrangler.local.toml
+# Open wrangler.local.toml and paste your new database_id inside
+
+# 3. Migrate and deploy
+pnpm db:migrate:remote
+pnpm deploy:production
 ```
 
-Requires a [Cloudflare account](https://dash.cloudflare.com/sign-up) and [Wrangler](https://developers.cloudflare.com/workers/wrangler/).
 
 ---
 

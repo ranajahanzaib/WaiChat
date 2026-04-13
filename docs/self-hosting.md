@@ -16,17 +16,23 @@ Click the button and Cloudflare handles everything automatically - no CLI, no co
 
 ## Manual Deploy (CLI)
 
+Requires a [Cloudflare account](https://dash.cloudflare.com/sign-up) and your `CLOUDFLARE_API_TOKEN` set as an environment variable.
+
 If you prefer to deploy manually:
 
 ```bash
 git clone https://github.com/ranajahanzaib/waichat.git
 cd waichat
 pnpm install
+
+# Create a database and configure your local wrangler file
+npx wrangler d1 create waichat-db
+cp wrangler.local.toml.example wrangler.local.toml
+# Important: Add the generated database_id to your wrangler.local.toml
+
 pnpm db:migrate:remote   # apply D1 schema to remote database
 pnpm deploy:production   # build client and deploy worker
 ```
-
-Requires a [Cloudflare account](https://dash.cloudflare.com/sign-up) and your `CLOUDFLARE_API_TOKEN` set as an environment variable.
 
 ---
 
@@ -104,6 +110,11 @@ All other configuration (D1 binding, Workers AI binding) is handled automaticall
 
 ```bash
 pnpm install
+
+# Configure your local wrangler file first
+cp wrangler.local.toml.example wrangler.local.toml
+# Ensure you have a database_id set in wrangler.local.toml
+
 pnpm db:migrate:local    # apply D1 schema locally
 pnpm dev:worker          # start Worker on localhost:8787
 pnpm dev:client          # start Vite dev server on localhost:5173
