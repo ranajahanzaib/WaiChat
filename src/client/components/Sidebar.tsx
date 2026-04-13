@@ -9,7 +9,14 @@ interface SidebarProps {
   onSettingsOpen: () => void;
 }
 
-export default function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onSettingsOpen }: SidebarProps) {
+export default function Sidebar({
+  conversations,
+  activeId,
+  onSelect,
+  onNew,
+  onDelete,
+  onSettingsOpen,
+}: SidebarProps) {
   return (
     <aside className="flex flex-col w-64 h-screen bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shrink-0">
       <div className="p-4 border-b border-gray-200 dark:border-gray-800">
@@ -23,7 +30,9 @@ export default function Sidebar({ conversations, activeId, onSelect, onNew, onDe
 
       <nav className="flex-1 overflow-y-auto p-2 space-y-1">
         {conversations.length === 0 && (
-          <p className="text-xs text-gray-400 dark:text-gray-600 text-center mt-8">No conversations yet</p>
+          <p className="text-xs text-gray-400 dark:text-gray-600 text-center mt-8">
+            No conversations yet
+          </p>
         )}
         {conversations.map((c) => (
           <div
@@ -37,7 +46,10 @@ export default function Sidebar({ conversations, activeId, onSelect, onNew, onDe
           >
             <span className="truncate">{c.title}</span>
             <button
-              onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(c.id);
+              }}
               className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity ml-2 shrink-0"
               aria-label="Delete conversation"
             >
@@ -48,10 +60,10 @@ export default function Sidebar({ conversations, activeId, onSelect, onNew, onDe
       </nav>
 
       <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
-        <p className="text-md text-gray-400 dark:text-gray-600">WaiChat</p>
+        <p className="text-base text-gray-400 dark:text-gray-600">WaiChat</p>
         <button
           onClick={onSettingsOpen}
-          className="text-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer"
+          className="text-base text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer"
           aria-label="Open settings"
         >
           ⚙️
