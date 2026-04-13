@@ -48,10 +48,10 @@ export default function Sidebar({ conversations, activeId, onSelect, onNew, onDe
       </nav>
 
       <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
-        <p className="text-xs text-gray-400 dark:text-gray-600">WaiChat</p>
+        <p className="text-md text-gray-400 dark:text-gray-600">WaiChat</p>
         <button
           onClick={onSettingsOpen}
-          className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          className="text-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer"
           aria-label="Open settings"
         >
           ⚙️
