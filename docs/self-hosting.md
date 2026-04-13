@@ -104,6 +104,7 @@ All other configuration (D1 binding, Workers AI binding) is handled automaticall
 
 ```bash
 pnpm install
+pnpm db:migrate:local    # apply D1 schema locally
 pnpm dev:worker          # start Worker on localhost:8787
 pnpm dev:client          # start Vite dev server on localhost:5173
 ```
