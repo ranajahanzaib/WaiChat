@@ -6,11 +6,11 @@
   "scripts": {
     "dev:client": "vite --config vite.config.ts",
     "dev:worker": "wrangler dev",
-    "build": "vite build --config vite.config.ts && touch dist/.gitkeep",
-    "cf:deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
-    "deploy:production": "pnpm build && pnpm run cf:deploy",
+    "build": "vite build --config vite.config.ts && touch dist/.gitkeep && pnpm run db:migrate:binding",
+    "deploy:production": "pnpm build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply waichat-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply waichat-db --remote",
+    "db:migrate:binding": "wrangler d1 migrations apply DB --remote",
     "type-check": "tsc --noEmit"
   },
   "keywords": [

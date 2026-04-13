@@ -7,11 +7,6 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./dist"
 
-# Build & deploy commands — used by Cloudflare Workers Builds and the Deploy button
-[build]
-command = "pnpm build"
-deploy_command = "pnpm run cf:deploy"
-
 # Workers AI binding
 [ai]
 binding = "AI"
