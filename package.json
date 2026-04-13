@@ -6,7 +6,7 @@
   "scripts": {
     "dev:client": "vite --config vite.config.ts",
     "dev:worker": "wrangler dev",
-    "build": "(test -d /opt/buildhome && pnpm db:migrate:remote || echo 'Not on Cloudflare, skipping migration.'); vite build --config vite.config.ts && touch dist/.gitkeep",
+    "build": "(test -d /opt/buildhome && pnpm db:migrate:binding || echo 'Not on Cloudflare, skipping migration.'); vite build --config vite.config.ts && touch dist/.gitkeep",
     "deploy:production": "pnpm build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply waichat-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply waichat-db --remote",
