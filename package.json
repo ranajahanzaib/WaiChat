@@ -10,7 +10,7 @@
     "deploy:production": "pnpm build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply waichat-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply waichat-db --remote",
-    "db:migrate:binding": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:binding": "npx wrangler d1 migrations apply DB --remote",
     "type-check": "tsc --noEmit"
   },
   "keywords": [
