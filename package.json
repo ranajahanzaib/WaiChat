@@ -6,7 +6,7 @@
   "scripts": {
     "dev:client": "vite --config vite.config.ts",
     "dev:worker": "wrangler dev",
-    "build": "node -e \"if(process.env.CF_PAGES) { console.log('Cloudflare detected, migrating...'); require('child_process').execSync('pnpm db:migrate:remote', {stdio: 'inherit'}) } else { console.log('Skipping migrations') }\" && vite build --config vite.config.ts && touch dist/.gitkeep",
+    "build": "test \"$CF_PAGES\" = \"1\" && pnpm db:migrate:remote || echo 'Build Environment: Local/CI. Skipping migration.'; vite build --config vite.config.ts && touch dist/.gitkeep",
     "deploy:production": "pnpm build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply waichat-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply waichat-db --remote",
