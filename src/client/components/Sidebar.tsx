@@ -54,7 +54,7 @@ export default function Sidebar({
                   e.stopPropagation();
                   setPendingDelete(c);
                 }}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity ml-2 shrink-0 cursor-pointer"
+                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity ml-2 shrink-0"
                 aria-label="Delete conversation"
               >
                 ✕
@@ -77,7 +77,11 @@ export default function Sidebar({
       <ConfirmModal
         open={pendingDelete !== null}
         title="Delete conversation?"
-        description={`"${pendingDelete?.title}" will be permanently deleted.`}
+        description={
+          pendingDelete
+            ? `"${pendingDelete.title}" will be permanently deleted.`
+            : ""
+        }
         confirmLabel="Delete"
         onConfirm={() => {
           if (pendingDelete) onDelete(pendingDelete.id);
