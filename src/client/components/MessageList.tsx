@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Message } from "../storage";
 
@@ -7,15 +7,23 @@ interface MessageListProps {
   isStreaming: boolean;
 }
 
-export default function MessageList({
-  messages,
-  isStreaming,
-}: MessageListProps) {
+export default function MessageList({ messages, isStreaming }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const handleCopy = async (id: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+    }
+  };
 
   if (messages.length === 0) {
     return (
@@ -30,7 +38,7 @@ export default function MessageList({
       {messages.map((m) => (
         <div
           key={m.id}
-          className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+          className={`group flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
         >
           <div
             className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
@@ -54,18 +62,12 @@ export default function MessageList({
                       </code>
                     );
                   },
-                  p: ({ children }) => (
-                    <p className="mb-2 last:mb-0">{children}</p>
-                  ),
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                   ul: ({ children }) => (
-                    <ul className="list-disc list-inside mb-2 space-y-1">
-                      {children}
-                    </ul>
+                    <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
                   ),
                   ol: ({ children }) => (
-                    <ol className="list-decimal list-inside mb-2 space-y-1">
-                      {children}
-                    </ol>
+                    <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
                   ),
                 }}
               >
@@ -82,6 +84,32 @@ export default function MessageList({
               </span>
             )}
           </div>
+
+          {m.content && (
+            <button
+              onClick={() => handleCopy(m.id, m.content)}
+              className="mt-1.5 px-2 py-1 text-[11px] font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer"
+              aria-label="Copy message"
+            >
+              {copiedId === m.id ? (
+                <>
+                  <span className="text-green-500 dark:text-green-400">✓</span> Copied
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Copy
+                </>
+              )}
+            </button>
+          )}
         </div>
       ))}
       <div ref={bottomRef} />
