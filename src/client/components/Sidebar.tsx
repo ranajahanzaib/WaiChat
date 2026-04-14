@@ -63,7 +63,7 @@ export default function Sidebar({
                   e.stopPropagation();
                   setPendingDelete(c);
                 }}
-                className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-red-500 transition-opacity ml-2 shrink-0 cursor-pointer"
+                className="p-1 rounded-md md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 focus-visible:ring-2 focus-visible:ring-red-500 focus:outline-none text-gray-400 cursor-pointer md:hover:text-red-500 active:text-red-500 transition-all ml-2 shrink-0"
                 aria-label="Delete conversation"
               >
                 ✕
