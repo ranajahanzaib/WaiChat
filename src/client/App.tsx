@@ -41,6 +41,9 @@ export default function App() {
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Storage dropdown state for mobile-friendly click toggling
+  const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
+
   // Sidebar state: Open by default on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     return typeof window !== "undefined" ? window.innerWidth >= MOBILE_BREAKPOINT : true;
@@ -49,6 +52,19 @@ export default function App() {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  // Close storage dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as Element).closest(".storage-dropdown-container")) {
+        setStorageDropdownOpen(false);
+      }
+    };
+    if (storageDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [storageDropdownOpen]);
 
   const closeSidebarOnMobile = () => {
     if (window.innerWidth < MOBILE_BREAKPOINT) {
@@ -81,6 +97,7 @@ export default function App() {
   const handleStorageToggle = (next: StorageMode) => {
     setStorageMode(next);
     localStorage.setItem(STORAGE_MODE_KEY, next);
+    setStorageDropdownOpen(false); // Close dropdown after selection
   };
 
   const handleDefaultModelChange = (m: string) => {
@@ -128,12 +145,12 @@ export default function App() {
       />
 
       <main className="flex flex-col flex-1 min-w-0">
-        <header className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="flex items-center justify-between px-3 md:px-6 py-3 border-b border-gray-200 dark:border-gray-800 shrink-0 gap-2">
+          <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none transition-colors"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none transition-colors shrink-0"
                 aria-label="Open sidebar"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,22 +163,40 @@ export default function App() {
                 </svg>
               </button>
             )}
-            <ModelPicker
-              models={models}
-              value={model}
-              onChange={handleDefaultModelChange}
-              disabled={isStreaming}
-            />
+            <div className="flex-1 min-w-0">
+              <ModelPicker
+                models={models}
+                value={model}
+                onChange={handleDefaultModelChange}
+                disabled={isStreaming}
+              />
+            </div>
           </div>
 
-          <div className="relative group">
-            <button className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 transition-colors">
-              {storageMode === "cloud" ? "☁️ Cloud" : "💾 Local"}
-              <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+          <div className="relative storage-dropdown-container shrink-0">
+            <button
+              onClick={() => setStorageDropdownOpen(!storageDropdownOpen)}
+              className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-lg px-2 md:px-3 py-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Toggle storage mode"
+            >
+              <span className="text-base md:text-sm leading-none">
+                {storageMode === "cloud" ? "☁️" : "💾"}
+              </span>
+              <span className="hidden md:inline">
+                {storageMode === "cloud" ? "Cloud" : "Local"}
+              </span>
+              <svg className="hidden md:block w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
                 <path d="M6 8L1 3h10z" />
               </svg>
             </button>
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+
+            <div
+              className={`absolute right-0 top-full mt-1 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden transition-all duration-200 z-10 origin-top-right ${
+                storageDropdownOpen
+                  ? "opacity-100 scale-100 visible"
+                  : "opacity-0 scale-95 invisible"
+              }`}
+            >
               {(["cloud", "local"] as StorageMode[]).map((mode) => (
                 <button
                   key={mode}
