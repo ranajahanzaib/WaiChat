@@ -11,6 +11,7 @@ import SettingsModal from "./components/SettingsModal";
 const STORAGE_MODE_KEY = "waichat:storage-mode";
 const SYSTEM_PROMPT_KEY = "waichat:system-prompt";
 const DEFAULT_MODEL_KEY = "waichat:default-model";
+const MOBILE_BREAKPOINT = 768;
 
 export default function App() {
   const [storageMode, setStorageMode] = useState<StorageMode>(() => {
@@ -42,27 +43,29 @@ export default function App() {
 
   // Sidebar state: Open by default on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
-    return typeof window !== "undefined" ? window.innerWidth >= 768 : true;
+    return typeof window !== "undefined" ? window.innerWidth >= MOBILE_BREAKPOINT : true;
   });
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
 
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth < MOBILE_BREAKPOINT) {
+      setSidebarOpen(false);
+    }
+  };
+
   // Wrapper for selecting a chat: automatically close sidebar on mobile
   const handleSelectConversation = (id: string) => {
     selectConversation(id);
-    if (window.innerWidth < 768) {
-      setSidebarOpen(false);
-    }
+    closeSidebarOnMobile();
   };
 
   // Wrapper for new chat: automatically close sidebar on mobile
   const handleNew = async () => {
     await newConversation(model);
-    if (window.innerWidth < 768) {
-      setSidebarOpen(false);
-    }
+    closeSidebarOnMobile();
   };
 
   const handleSend = async (content: string) => {
