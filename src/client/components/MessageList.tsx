@@ -78,18 +78,19 @@ export default function MessageList({ messages, isStreaming }: MessageListProps)
             )}
 
             {/* Show streaming indicator OR model attribution */}
-            {m.role === "assistant" && isStreaming && m.content === "" ? (
-              <span className="inline-flex gap-1 mt-2">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
-              </span>
-            ) : (
-              m.role === "assistant" &&
-              m.model && (
-                <div className="mt-3 text-[10px] text-gray-400 dark:text-gray-500 font-mono tracking-wide uppercase">
-                  {m.model.split("/").pop()}
-                </div>
+            {m.role === "assistant" && (
+              isStreaming && m.content === "" ? (
+                <span className="inline-flex gap-1 mt-2">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                </span>
+              ) : (
+                m.model && (
+                  <div className="mt-3 text-[10px] text-gray-400 dark:text-gray-500 font-mono tracking-wide uppercase">
+                    {m.model.split('/').pop()}
+                  </div>
+                )
               )
             )}
           </div>
