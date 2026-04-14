@@ -33,19 +33,36 @@ export default function App() {
 
   const { models } = useModels();
   const [model, setModel] = useState(
-    () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID
+    () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
   );
   const [systemPrompt, setSystemPrompt] = useState(
-    () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? ""
+    () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Sidebar state: Open by default on desktop, closed on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    return typeof window !== "undefined" ? window.innerWidth >= 768 : true;
+  });
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
 
+  // Wrapper for selecting a chat: automatically close sidebar on mobile
+  const handleSelectConversation = (id: string) => {
+    selectConversation(id);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  };
+
+  // Wrapper for new chat: automatically close sidebar on mobile
   const handleNew = async () => {
     await newConversation(model);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   };
 
   const handleSend = async (content: string) => {
@@ -79,7 +96,7 @@ export default function App() {
     } else {
       // Clear localStorage conversations and messages
       const keys = Object.keys(localStorage).filter(
-        (k) => k.startsWith("waichat:conversations") || k.startsWith("waichat:messages:")
+        (k) => k.startsWith("waichat:conversations") || k.startsWith("waichat:messages:"),
       );
       keys.forEach((k) => localStorage.removeItem(k));
     }
@@ -87,11 +104,21 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+      {/* Mobile Backdrop Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-20 md:hidden transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <Sidebar
         conversations={conversations}
         activeId={activeConversation?.id ?? null}
-        onSelect={selectConversation}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onSelect={handleSelectConversation}
         onNew={handleNew}
         onDelete={deleteConversation}
         onSettingsOpen={() => setSettingsOpen(true)}
@@ -99,12 +126,31 @@ export default function App() {
 
       <main className="flex flex-col flex-1 min-w-0">
         <header className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
-          <ModelPicker
-            models={models}
-            value={model}
-            onChange={handleDefaultModelChange}
-            disabled={isStreaming}
-          />
+          <div className="flex items-center gap-3">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none transition-colors"
+                aria-label="Open sidebar"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+              </button>
+            )}
+            <ModelPicker
+              models={models}
+              value={model}
+              onChange={handleDefaultModelChange}
+              disabled={isStreaming}
+            />
+          </div>
+
           <div className="relative group">
             <button className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 transition-colors">
               {storageMode === "cloud" ? "☁️ Cloud" : "💾 Local"}
@@ -123,7 +169,9 @@ export default function App() {
                 >
                   <span className="text-base mt-0.5">{mode === "cloud" ? "☁️" : "💾"}</span>
                   <div>
-                    <p className={`text-sm font-medium ${storageMode === mode ? "text-indigo-600 dark:text-indigo-400" : "text-gray-700 dark:text-gray-300"}`}>
+                    <p
+                      className={`text-sm font-medium ${storageMode === mode ? "text-indigo-600 dark:text-indigo-400" : "text-gray-700 dark:text-gray-300"}`}
+                    >
                       {mode === "cloud" ? "Cloud (D1)" : "Local (Browser)"}
                     </p>
                     <p className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">
@@ -133,7 +181,9 @@ export default function App() {
                     </p>
                   </div>
                   {storageMode === mode && (
-                    <span className="ml-auto text-indigo-600 dark:text-indigo-400 text-xs mt-1">✓</span>
+                    <span className="ml-auto text-indigo-600 dark:text-indigo-400 text-xs mt-1">
+                      ✓
+                    </span>
                   )}
                 </button>
               ))}
