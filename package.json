@@ -6,7 +6,8 @@
   "scripts": {
     "dev:client": "vite --config vite.config.ts",
     "dev:worker": "wrangler dev -c wrangler.local.toml",
-    "build": "(test -d /opt/buildhome && pnpm db:migrate:binding || echo 'Not on Cloudflare, skipping migration.'); vite build --config vite.config.ts && touch dist/.gitkeep",
+    "build": "(test -d /opt/buildhome && pnpm db:migrate:binding || echo 'Not on Cloudflare, skipping migration.'); vite build --config vite.config.ts && pnpm run build:assets",
+    "build:assets": "touch dist/.gitkeep && echo '/api/* /api/:splat 200' > dist/_redirects && echo '/* /index.html 200' >> dist/_redirects",
     "deploy:production": "pnpm build && wrangler deploy -c wrangler.local.toml",
     "db:migrate:local": "wrangler d1 migrations apply waichat-db --local -c wrangler.local.toml",
     "db:migrate:remote": "wrangler d1 migrations apply waichat-db --remote -c wrangler.local.toml",
