@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useChat } from "./hooks/useChat";
 import { useModels, DEFAULT_MODEL_ID } from "./hooks/useModels";
 import type { StorageMode } from "./storage";
@@ -54,22 +54,32 @@ export default function App() {
     loadConversations();
   }, [loadConversations]);
 
-  // Check the URL on the very first render
+  const initialLoadDone = useRef(false);
+
+  // Check the URL on the very first render safely
   useEffect(() => {
+    if (initialLoadDone.current) return;
+
     const path = window.location.pathname;
     if (path.startsWith("/c/")) {
       const id = path.slice(3);
-      selectConversation(id);
+      if (id) selectConversation(id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    initialLoadDone.current = true;
+  }, [selectConversation]);
 
   // Browser Back/Forward: Listen to history pops
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
       if (path.startsWith("/c/")) {
-        selectConversation(path.slice(3));
+        const id = path.slice(3);
+        if (id) {
+          selectConversation(id);
+        } else {
+          clearConversation();
+        }
       } else {
         clearConversation();
       }
