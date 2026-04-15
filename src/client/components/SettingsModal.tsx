@@ -106,12 +106,12 @@ export default function SettingsModal({
                 <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
                   Theme
                 </label>
-                <div className="flex rounded-xl bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
+                <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
                   {(["system", "light", "dark"] as const).map((t) => (
                     <button
                       key={t}
                       onClick={() => onThemeChange(t)}
-                      className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-lg transition-all duration-200 capitalize ${
+                      className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 capitalize ${
                         theme === t
                           ? "bg-white dark:bg-white/15 text-gray-900 dark:text-white/95 shadow-sm"
                           : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5"
@@ -128,12 +128,12 @@ export default function SettingsModal({
                 <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 mb-2">
                   Storage Mode
                 </label>
-                <div className="flex rounded-xl bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
+                <div className="flex rounded-full bg-black/5 dark:bg-black/20 p-1 border-[0.5px] border-black/5 dark:border-white/10">
                   {(["cloud", "local"] as StorageMode[]).map((mode) => (
                     <button
                       key={mode}
                       onClick={() => setDraftStorageMode(mode)}
-                      className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-lg transition-all duration-200 ${
+                      className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 ${
                         draftStorageMode === mode
                           ? "bg-white dark:bg-white/15 text-gray-900 dark:text-white/95 shadow-sm"
                           : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5"
@@ -158,7 +158,7 @@ export default function SettingsModal({
                 <select
                   value={draftModel}
                   onChange={(e) => setDraftModel(e.target.value)}
-                  className="w-full text-base md:text-sm bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-2.5 text-gray-900 dark:text-white/95 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors [&>option]:bg-white dark:[&>option]:bg-[#1e1e20] [&>option]:text-gray-900 dark:[&>option]:text-white/95"
+                  className="w-full text-base md:text-sm bg-black/5 dark:bg-black/20 border-[0.5px] border-black/10 dark:border-white/10 rounded-full px-3 py-2.5 text-gray-900 dark:text-white/95 outline-none focus:border-[#0A84FF] focus:bg-white dark:focus:bg-black/30 transition-colors [&>option]:bg-white dark:[&>option]:bg-[#1e1e20] [&>option]:text-gray-900 dark:[&>option]:text-white/95"
                 >
                   {models.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -209,7 +209,7 @@ export default function SettingsModal({
                       onClearConversations("cloud");
                     }
                   }}
-                  className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border-[0.5px] border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-lg px-3 py-1.5 transition-all focus:outline-none"
+                  className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border-[0.5px] border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-all focus:outline-none"
                 >
                   Clear
                 </button>
@@ -231,7 +231,7 @@ export default function SettingsModal({
                       onClearConversations("local");
                     }
                   }}
-                  className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border-[0.5px] border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-lg px-3 py-1.5 transition-all focus:outline-none"
+                  className="text-[11px] md:text-xs font-medium text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border-[0.5px] border-red-500/30 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-all focus:outline-none"
                 >
                   Clear
                 </button>
@@ -244,13 +244,13 @@ export default function SettingsModal({
         <div className="px-6 py-4 border-t-[0.5px] border-black/10 dark:border-white/10 flex gap-3 shrink-0 bg-black/[0.02] dark:bg-white/[0.02]">
           <button
             onClick={handleCancel}
-            className="flex-1 py-2.5 text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white/95 rounded-xl transition-all focus:outline-none"
+            className="flex-1 py-2.5 text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80 bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white/95 rounded-full transition-all focus:outline-none"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 py-2.5 text-[13px] md:text-sm font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] rounded-xl shadow-[0_2px_8px_rgba(10,132,255,0.2)] dark:shadow-[0_2px_8px_rgba(10,132,255,0.3)] transition-all focus:outline-none"
+            className="flex-1 py-2.5 text-[13px] md:text-sm font-medium text-white bg-[#0A84FF] hover:bg-[#0070E0] rounded-full shadow-[0_2px_8px_rgba(10,132,255,0.2)] dark:shadow-[0_2px_8px_rgba(10,132,255,0.3)] transition-all focus:outline-none"
           >
             Save
           </button>
