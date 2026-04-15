@@ -19,9 +19,11 @@ function ThoughtParser({ content }: { content: string }) {
     return true;
   });
 
+  const THINK_START = "<think>";
+  const THINK_END = "</think>";
   const lowerContent = content.toLowerCase();
-  const thinkStartIndex = lowerContent.indexOf("<think>");
-  const thinkEndIndex = lowerContent.indexOf("</think>");
+  const thinkStartIndex = lowerContent.indexOf(THINK_START);
+  const thinkEndIndex = lowerContent.indexOf(THINK_END);
 
   const hasThought = thinkStartIndex !== -1;
   const isThinking = hasThought && thinkEndIndex === -1;
@@ -40,15 +42,19 @@ function ThoughtParser({ content }: { content: string }) {
     return <MarkdownRenderer content={content} />;
   }
 
-  const thoughtContent = isThinking
-    ? content.substring(thinkStartIndex + 7).trim()
-    : content.substring(thinkStartIndex + 7, thinkEndIndex).trim();
+  const precedingContent = content.substring(0, thinkStartIndex).trim();
 
-  const remainingContent = isThinking ? "" : content.substring(thinkEndIndex + 8).trim();
+  const thoughtContent = isThinking
+    ? content.substring(thinkStartIndex + THINK_START.length).trim()
+    : content.substring(thinkStartIndex + THINK_START.length, thinkEndIndex).trim();
+
+  const remainingContent = isThinking
+    ? ""
+    : content.substring(thinkEndIndex + THINK_END.length).trim();
 
   // Handlers
   const handleCopyThought = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevents the <details> block from collapsing when clicking the button
+    e.stopPropagation(); // Prevents the <details> block from toggling when clicking the button
     try {
       await navigator.clipboard.writeText(thoughtContent);
       setCopied(true);
@@ -68,6 +74,9 @@ function ThoughtParser({ content }: { content: string }) {
 
   return (
     <div className="flex flex-col gap-3 w-full">
+      {/* Render any text that the model output before the <think> block */}
+      {precedingContent && <MarkdownRenderer content={precedingContent} />}
+
       <details
         open={isOpen}
         onToggle={handleToggle}
@@ -159,8 +168,8 @@ export default function MessageList({ messages, isStreaming }: MessageListProps)
   }, [messages]);
 
   const handleCopy = async (id: string, content: string) => {
-    // Strip <think> tags before copying to clipboard so users just get the actual answer
-    const cleanContent = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    // Strip <think> tags (even unclosed ones) before copying to clipboard
+    const cleanContent = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
 
     try {
       await navigator.clipboard.writeText(cleanContent);
