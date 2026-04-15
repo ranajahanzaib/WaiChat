@@ -12,6 +12,7 @@ interface UseChatReturn {
   selectConversation: (id: string) => Promise<void>;
   newConversation: (model: string) => Promise<Conversation>;
   deleteConversation: (id: string) => Promise<void>;
+  clearConversation: () => void;
   sendMessage: (
     content: string,
     model: string,
@@ -81,6 +82,12 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
     },
     [storage, activeConversation],
   );
+
+  const clearConversation = useCallback(() => {
+    setActiveConversation(null);
+    setMessages([]);
+    setError(null);
+  }, []);
 
   const sendMessage = useCallback(
     async (
@@ -237,6 +244,7 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
     selectConversation,
     newConversation,
     deleteConversation,
+    clearConversation,
     sendMessage,
   };
 }

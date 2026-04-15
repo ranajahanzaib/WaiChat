@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Conversation } from "../storage";
+import type { Conversation, StorageMode } from "../storage";
 import ConfirmModal from "./ConfirmModal";
 
 interface SidebarProps {
@@ -8,9 +8,11 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (id: string) => void;
-  onNew: () => void;
+  onNew: (mode?: StorageMode) => void;
   onDelete: (id: string) => void;
   onSettingsOpen: () => void;
+  currentMode: StorageMode;
+  savedMode: StorageMode;
 }
 
 export default function Sidebar({
@@ -22,6 +24,8 @@ export default function Sidebar({
   onNew,
   onDelete,
   onSettingsOpen,
+  currentMode,
+  savedMode,
 }: SidebarProps) {
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
 
@@ -32,13 +36,36 @@ export default function Sidebar({
           isOpen ? "translate-x-0" : "-translate-x-full md:-ml-64"
         }`}
       >
-        <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-          <button
-            onClick={onNew}
-            className="w-full py-2 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
-          >
-            New Chat
-          </button>
+        {/* Explicit split-button flow to the Sidebar for "New Chat" actions when a user views a deep link
+          that differs from their saved default storage mode. The user can now seamlessly opt to return to
+          their default workspace or explicitly create a new chat in the temporary storage mode they are viewing,
+          preventing accidental database pollution. */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col gap-2">
+          {currentMode === savedMode ? (
+            <button
+              onClick={() => onNew(currentMode)}
+              className="w-full py-2 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
+            >
+              New Chat
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => onNew(savedMode)}
+                className="w-full py-2 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
+                title={`Return to your default ${savedMode} workspace`}
+              >
+                New Chat in {savedMode === "cloud" ? "☁️ Cloud" : "💾 Local"}
+              </button>
+              <button
+                onClick={() => onNew(currentMode)}
+                className="w-full py-2 px-4 rounded-lg bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium transition-colors"
+                title={`Create a new chat in the current temporary ${currentMode} workspace`}
+              >
+                New Chat in {currentMode === "cloud" ? "☁️ Cloud" : "💾 Local"}
+              </button>
+            </>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2 space-y-1">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useChat } from "./hooks/useChat";
 import { useModels, DEFAULT_MODEL_ID } from "./hooks/useModels";
 import type { StorageMode } from "./storage";
@@ -14,9 +14,23 @@ const DEFAULT_MODEL_KEY = "waichat:default-model";
 const MOBILE_BREAKPOINT = 768;
 
 export default function App() {
+  // Track the actual saved preference in localStorage separately
+  const [savedStorageMode, setSavedStorageMode] = useState<StorageMode>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(STORAGE_MODE_KEY);
+      return stored === "local" ? "local" : "cloud";
+    }
+    return "cloud";
+  });
+
+  // Check the URL for a forced storage mode first, fallback to localStorage
   const [storageMode, setStorageMode] = useState<StorageMode>(() => {
-    const stored = localStorage.getItem(STORAGE_MODE_KEY);
-    return stored === "local" ? "local" : "cloud";
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname;
+      if (path.startsWith("/c/local/")) return "local";
+      if (path.startsWith("/c/cloud/")) return "cloud";
+    }
+    return savedStorageMode;
   });
 
   const {
@@ -29,6 +43,7 @@ export default function App() {
     selectConversation,
     newConversation,
     deleteConversation,
+    clearConversation,
     sendMessage,
   } = useChat(storageMode);
 
@@ -52,6 +67,72 @@ export default function App() {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  const initialLoadDone = useRef(false);
+
+  // Safely parse the new URL format on initial render
+  useEffect(() => {
+    if (initialLoadDone.current) return;
+
+    const path = window.location.pathname;
+    if (path.startsWith("/c/")) {
+      const parts = path.split("/");
+      const mode = parts[2];
+      const id = parts[3];
+
+      if ((mode === "cloud" || mode === "local") && id) {
+        selectConversation(id);
+      } else {
+        // Invalid path format, just go back home cleanly
+        window.history.replaceState({}, "", "/");
+      }
+    }
+
+    initialLoadDone.current = true;
+  }, [selectConversation]);
+
+  // Handle browser Back/Forward with cross-mode support
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path.startsWith("/c/")) {
+        const parts = path.split("/");
+        const mode = parts[2] as StorageMode;
+        const id = parts[3];
+
+        if ((mode === "cloud" || mode === "local") && id) {
+          if (mode !== storageMode) {
+            // If the user hits "Back" and it crosses into a different storage mode,
+            // the safest way to re-initialize all hooks and state is a hard reload.
+            window.location.reload();
+            return;
+          }
+          selectConversation(id);
+        } else {
+          // Invalid URL format, act as if we hit home
+          clearConversation();
+          window.history.replaceState({}, "", "/");
+        }
+      } else {
+        clearConversation();
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [selectConversation, clearConversation, storageMode]);
+
+  // Update the URL format to include the storage mode
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    if (activeConversation) {
+      const expectedPath = `/c/${storageMode}/${activeConversation.id}`;
+      if (currentPath !== expectedPath) {
+        window.history.pushState({}, "", expectedPath);
+      }
+    } else if (currentPath !== "/") {
+      window.history.pushState({}, "", "/");
+    }
+  }, [activeConversation, storageMode]);
 
   // Close storage dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -82,15 +163,29 @@ export default function App() {
     }
   };
 
-  // Wrapper for selecting a chat: automatically close sidebar on mobile
   const handleSelectConversation = (id: string) => {
     selectConversation(id);
     closeSidebarOnMobile();
   };
 
-  // Wrapper for new chat: automatically close sidebar on mobile
-  const handleNew = async () => {
-    await newConversation(model);
+  const handleStorageToggle = (next: StorageMode) => {
+    setStorageMode(next);
+    setSavedStorageMode(next); // Sync saved mode when manually toggled
+    localStorage.setItem(STORAGE_MODE_KEY, next);
+    setStorageDropdownOpen(false);
+  };
+
+  // Wrapper for new chat with mode support
+  const handleNew = async (targetMode: StorageMode = storageMode) => {
+    if (targetMode !== storageMode) {
+      // User opted to return to their default mode. We toggle state and reset home.
+      handleStorageToggle(targetMode);
+      clearConversation();
+      window.history.pushState({}, "", "/");
+    } else {
+      // Standard new chat in the current mode
+      await newConversation(model);
+    }
     closeSidebarOnMobile();
   };
 
@@ -102,12 +197,6 @@ export default function App() {
     } else {
       await sendMessage(content, model, activeConversation.id, storageMode, systemPrompt);
     }
-  };
-
-  const handleStorageToggle = (next: StorageMode) => {
-    setStorageMode(next);
-    localStorage.setItem(STORAGE_MODE_KEY, next);
-    setStorageDropdownOpen(false); // Close dropdown after selection
   };
 
   const handleDefaultModelChange = (m: string) => {
@@ -124,7 +213,6 @@ export default function App() {
     if (mode === "cloud") {
       await fetch("/api/conversations", { method: "DELETE" });
     } else {
-      // Clear localStorage conversations and messages
       const keys = Object.keys(localStorage).filter(
         (k) => k.startsWith("waichat:conversations") || k.startsWith("waichat:messages:"),
       );
@@ -152,6 +240,8 @@ export default function App() {
         onNew={handleNew}
         onDelete={deleteConversation}
         onSettingsOpen={() => setSettingsOpen(true)}
+        currentMode={storageMode}
+        savedMode={savedStorageMode}
       />
 
       <main className="flex flex-col flex-1 min-w-0">
