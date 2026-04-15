@@ -225,6 +225,11 @@ export default function App() {
       window.history.pushState({}, "", "/");
     } else {
       // Standard new chat in the current mode
+      // Prevent creating multiple empty chats if the current one is already empty
+      if (activeConversation && messages.length === 0) {
+        closeSidebarOnMobile();
+        return;
+      }
       await newConversation(model);
     }
     closeSidebarOnMobile();
@@ -356,7 +361,7 @@ export default function App() {
 
                 <div
                   role="menu"
-                  className={`absolute right-0 top-full mt-2 w-64 bg-white/95 dark:bg-[#1e1e20]/95 backdrop-blur-xl border border-black/5 dark:border-white/10 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-200 z-50 origin-top-right ${
+                  className={`absolute right-0 top-full mt-2 w-60 p-1.5 bg-white/95 dark:bg-[#1e1e20]/95 backdrop-blur-xl border-[0.5px] border-black/10 dark:border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-200 z-50 origin-top-right ${
                     storageDropdownOpen
                       ? "opacity-100 scale-100 visible"
                       : "opacity-0 scale-95 invisible"
@@ -367,27 +372,30 @@ export default function App() {
                       key={mode}
                       role="menuitem"
                       onClick={() => handleStorageToggle(mode)}
-                      className={`w-full flex items-start gap-3 px-4 py-3.5 text-left hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${
-                        storageMode === mode ? "bg-[#0A84FF]/10" : ""
+                      className={`w-full flex flex-col items-start px-3 py-2.5 text-left rounded-xl transition-all duration-200 cursor-pointer ${
+                        storageMode === mode
+                          ? "bg-[#0A84FF]/10 dark:bg-[#0A84FF]/20"
+                          : "hover:bg-black/5 dark:hover:bg-white/10"
                       }`}
                     >
-                      <span className="text-base md:text-lg mt-0.5">
-                        {mode === "cloud" ? "☁️" : "💾"}
-                      </span>
-                      <div>
-                        <p
-                          className={`text-sm md:text-base font-medium ${
-                            storageMode === mode
-                              ? "text-[#0A84FF]"
-                              : "text-gray-900 dark:text-white/95"
-                          }`}
-                        >
-                          {mode === "cloud" ? "Cloud (D1)" : "Local (Browser)"}
-                        </p>
-                        <p className="text-xs md:text-sm text-gray-500 dark:text-white/40 mt-0.5">
-                          {mode === "cloud" ? "Syncs across devices" : "Stays in your browser"}
-                        </p>
-                      </div>
+                      <p
+                        className={`text-[13px] md:text-sm font-medium ${
+                          storageMode === mode
+                            ? "text-[#0A84FF] dark:text-[#3A9FFF]"
+                            : "text-gray-900 dark:text-white/95"
+                        }`}
+                      >
+                        {mode === "cloud" ? "Cloud (D1)" : "Local (Browser)"}
+                      </p>
+                      <p
+                        className={`text-[11px] md:text-xs mt-0.5 ${
+                          storageMode === mode
+                            ? "text-[#0A84FF]/70 dark:text-[#3A9FFF]/70"
+                            : "text-gray-500 dark:text-white/40"
+                        }`}
+                      >
+                        {mode === "cloud" ? "Syncs across devices" : "Stays in your browser"}
+                      </p>
                     </button>
                   ))}
                 </div>
