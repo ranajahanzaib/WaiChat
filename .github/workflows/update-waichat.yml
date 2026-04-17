@@ -1,0 +1,66 @@
+# ==============================================================================
+# Workflow: Update WaiChat
+# Description: Provides a 1-click "Over-The-Air" update mechanism for users
+#              who deployed WaiChat via the Cloudflare "Deploy" button.
+#              It fetches the latest official releases from the upstream repo
+#              (either stable or pre-release) and safely merges them into the
+#              user's local repository, triggering a Cloudflare redeployment.
+# ==============================================================================
+name: Update WaiChat
+
+on:
+  workflow_dispatch:
+    inputs:
+      update_track:
+        description: "Which version do you want to update to?"
+        required: true
+        default: "latest-stable"
+        type: choice
+        options:
+          - latest-stable
+          - latest-prerelease (alpha/beta)
+
+jobs:
+  update-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add upstream repository
+        run: git remote add upstream https://github.com/ranajahanzaib/WaiChat.git
+
+      - name: Fetch upstream tags
+        run: git fetch upstream --tags
+
+      - name: Determine Target Release Tag
+        id: get_tag
+        run: |
+          if [ "${{ github.event.inputs.update_track }}" == "latest-stable" ]; then
+            # Fetches the absolute latest stable release using the built-in automatic token
+            TAG=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/ranajahanzaib/WaiChat/releases/latest | jq -r .tag_name)
+          else
+            # Fetches the most recent release of any kind (including alphas/betas)
+            TAG=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/ranajahanzaib/WaiChat/releases | jq -r '.[0].tag_name')
+          fi
+
+          if [ "$TAG" == "null" ] || [ -z "$TAG" ]; then
+            echo "Error: Could not find a matching release tag."
+            exit 1
+          fi
+
+          echo "TARGET_TAG=$TAG" >> $GITHUB_ENV
+          echo "Updating to tag: $TAG"
+
+      - name: Merge Release Tag
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+
+          # Merge the specific release tag into the user's main branch
+          git merge ${{ env.TARGET_TAG }} --allow-unrelated-histories -m "chore: update WaiChat to ${{ env.TARGET_TAG }}" || echo "No new updates or merge conflict"
+
+      - name: Push updates
+        run: git push origin main
