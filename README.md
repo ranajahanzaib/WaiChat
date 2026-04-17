@@ -1,22 +1,28 @@
-# WaiChat
-[![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange.svg)]()
-[![Build](https://github.com/ranajahanzaib/WaiChat/actions/workflows/ci.yml/badge.svg)](https://github.com/ranajahanzaib/WaiChat/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg)](./CONTRIBUTING.md)
+<div align="center">
+  
+  <img alt="WaiChat Logo" height="128" alt="waichat" src="https://github.com/user-attachments/assets/032b440a-fdd6-421d-a1ff-1c89287e1ee6" />
+
+  <h1>WaiChat</h1>
+  
+  [![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange.svg)]()
+  [![Build](https://github.com/ranajahanzaib/WaiChat/actions/workflows/ci.yml/badge.svg)](https://github.com/ranajahanzaib/WaiChat/actions/workflows/ci.yml)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+  [![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg)](./CONTRIBUTING.md)
+  
+</div>
 
 A Private, Serverless AI Chat App built on [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/). Free to run, yours to own, one click to deploy. No backend server, no third-party services, no monthly bills. Deploy in one click and start chatting.
 
-> **Alpha Software** - _WaiChat is under active development. Core chat functionality works, but some features are incomplete (auth, UX/UI improvements). Use for personal/testing purposes only. You can track progress or suggest feature/fixes on this [page](https://github.com/users/ranajahanzaib/projects/33/views/3)._
+> _WaiChat is in active development. Core chat is functional, but authentication and UI/UX are still being refined. Use for testing/personal purposes only. Track progress or suggest fixes [here](https://github.com/users/ranajahanzaib/projects/33/views/3)._
 >
 > _**WaiChat is short for Workers AI Chat**_
-
-https://github.com/user-attachments/assets/e62c3a84-aa5d-4d24-be3f-f162115db89a
 
 
 <img width="1432" height="1053" alt="Screenshot 2026-04-15 at 10 36 11 PM" src="https://github.com/user-attachments/assets/09dd3b82-eeb7-4175-ad61-cd029e3926f3" />
 
 <img width="1553" height="1117" alt="Screenshot 2026-04-15 at 10 37 58 PM" src="https://github.com/user-attachments/assets/fb8456b4-74c7-4b1b-ba2d-06473990f628" />
 
+https://github.com/user-attachments/assets/e62c3a84-aa5d-4d24-be3f-f162115db89a
 
 ## Features
 
