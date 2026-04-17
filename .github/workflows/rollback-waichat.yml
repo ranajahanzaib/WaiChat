@@ -1,0 +1,52 @@
+# ==============================================================================
+# Workflow: Rollback WaiChat
+# Description: Provides a safe "panic button" to revert the application to a
+#              previous release. Instead of force-pushing or rewriting history,
+#              this uses `git restore` to copy the state of an older tag and
+#              creates a new forward-moving commit to trigger Cloudflare's CI.
+# ==============================================================================
+
+name: "Rollback WaiChat"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: "Enter the exact release tag to rollback to (e.g., v0.1.1-alpha)"
+        required: true
+        type: string
+
+jobs:
+  rollback-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add upstream repository
+        run: git remote add upstream https://github.com/ranajahanzaib/WaiChat.git
+
+      - name: Fetch upstream tags
+        run: git fetch upstream --tags
+
+      - name: Perform Rollback
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+
+          # 1. Verify the tag actually exists to prevent typos
+          if ! git rev-parse "${{ github.event.inputs.target_version }}" >/dev/null 2>&1; then
+            echo "Error: Tag ${{ github.event.inputs.target_version }} does not exist upstream."
+            exit 1
+          fi
+
+          # 2. Force the working directory to perfectly match the old tag
+          git restore --source=${{ github.event.inputs.target_version }} --staged --worktree .
+
+          # 3. Commit this state as a new forward-moving commit
+          git commit -m "chore: rollback WaiChat to ${{ github.event.inputs.target_version }}" || echo "Already at this version"
+
+      - name: Push Rollback to trigger deployment
+        run: git push origin main
