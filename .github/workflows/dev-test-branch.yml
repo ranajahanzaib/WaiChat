@@ -5,7 +5,6 @@
 #              a new repository. It fetches the specified branch from upstream
 #              and merges it into the local main branch for deployment.
 # ==============================================================================
-
 name: "Dev: Test Upstream Branch"
 
 on:
@@ -16,6 +15,9 @@ on:
         required: true
         default: "main"
         type: string
+
+permissions:
+  contents: write
 
 jobs:
   test-branch:
@@ -29,16 +31,29 @@ jobs:
       - name: Add upstream repository
         run: git remote add upstream https://github.com/ranajahanzaib/WaiChat.git
 
+      - name: Validate branch name
+        run: |
+          BRANCH="${{ github.event.inputs.target_branch }}"
+          if [[ ! "$BRANCH" =~ ^[a-zA-Z0-9/_.-]+$ ]]; then
+            echo "Error: Invalid branch name '$BRANCH'. Only alphanumeric characters, '/', '_', '-', and '.' are allowed."
+            exit 1
+          fi
+          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+
       - name: Fetch upstream branch
-        run: git fetch upstream ${{ github.event.inputs.target_branch }}
+        run: git fetch upstream ${{ env.BRANCH }}
 
       - name: Merge Upstream Branch
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
-
-          # Merge the specific upstream branch into the local main branch
-          git merge FETCH_HEAD --allow-unrelated-histories -m "chore: dev testing upstream branch ${{ github.event.inputs.target_branch }}" || echo "No new updates or merge conflict"
+          echo "Merging upstream/${{ env.BRANCH }} into local main..."
+          if ! git merge FETCH_HEAD --allow-unrelated-histories \
+               -m "chore: dev testing upstream branch ${{ env.BRANCH }}"; then
+            echo "Error: Merge conflict detected. Aborting."
+            git merge --abort
+            exit 1
+          fi
 
       - name: Push changes to trigger deployment
-        run: git push origin main
+        run: git push origin HEAD
