@@ -5,7 +5,6 @@
 #              this uses `git restore` to copy the state of an older tag and
 #              creates a new forward-moving commit to trigger Cloudflare's CI.
 # ==============================================================================
-
 name: "Rollback WaiChat"
 
 on:
@@ -15,6 +14,9 @@ on:
         description: "Enter the exact release tag to rollback to (e.g., v0.1.1-alpha)"
         required: true
         type: string
+
+permissions:
+  contents: write
 
 jobs:
   rollback-app:
@@ -36,17 +38,25 @@ jobs:
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
 
+          TARGET="${{ github.event.inputs.target_version }}"
+          CURRENT=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "unknown")
+
           # 1. Verify the tag actually exists to prevent typos
-          if ! git rev-parse "${{ github.event.inputs.target_version }}" >/dev/null 2>&1; then
-            echo "Error: Tag ${{ github.event.inputs.target_version }} does not exist upstream."
+          if ! git rev-parse "$TARGET" >/dev/null 2>&1; then
+            echo "Error: Tag '$TARGET' does not exist upstream."
             exit 1
           fi
 
+          echo "Rolling back from '$CURRENT' to '$TARGET'..."
+
           # 2. Force the working directory to perfectly match the old tag
-          git restore --source=${{ github.event.inputs.target_version }} --staged --worktree .
+          git restore --source="$TARGET" --staged --worktree .
 
-          # 3. Commit this state as a new forward-moving commit
-          git commit -m "chore: rollback WaiChat to ${{ github.event.inputs.target_version }}" || echo "Already at this version"
-
-      - name: Push Rollback to trigger deployment
-        run: git push origin main
+          # 3. Commit only if there are staged changes (i.e. not already at this version)
+          if git diff --cached --quiet; then
+            echo "Already at $TARGET. No rollback commit needed."
+          else
+            git commit -m "chore: rollback WaiChat to $TARGET"
+            git push origin HEAD
+            echo "Rollback to $TARGET complete."
+          fi
