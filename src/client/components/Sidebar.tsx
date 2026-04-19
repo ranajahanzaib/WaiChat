@@ -40,7 +40,7 @@ export default function Sidebar({
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-4">
           <div className="flex items-center gap-2 text-base md:text-lg font-semibold text-gray-900 dark:text-white/95 tracking-tight">
-            <img width="35px" height="35px" src="/waichat.webp" alt="Logo" />
+            <img width="35" height="35" src="/waichat.webp" alt="WaiChat Logo" />
             WaiChat
           </div>
           <button

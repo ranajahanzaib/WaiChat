@@ -186,7 +186,7 @@ export default function MessageList({ messages, isStreaming, onSelectPrompt }: M
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-y-auto w-full">
-        <img width="100px" height="100px" src="/waichat.webp" alt="Logo" className="m-4" />
+        <img width="100" height="100" src="/waichat.webp" alt="WaiChat Logo" className="m-4" />
         <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 dark:text-white/95 tracking-tight text-center mb-3">
           Let's explore an idea.
         </h1>
