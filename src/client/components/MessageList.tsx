@@ -186,20 +186,7 @@ export default function MessageList({ messages, isStreaming, onSelectPrompt }: M
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-y-auto w-full">
-        <div
-          className="w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-8 shadow-[0_8px_24px_rgba(10,132,255,0.3),inset_0_1px_0_rgba(255,255,255,0.4)]"
-          style={{ background: "linear-gradient(135deg, #0A84FF, #5E5CE6)" }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="w-10 h-10 text-white"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-        </div>
+        <img width="100" height="100" src="/waichat.webp" alt="WaiChat Logo" className="m-4" />
         <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 dark:text-white/95 tracking-tight text-center mb-3">
           Let's explore an idea.
         </h1>

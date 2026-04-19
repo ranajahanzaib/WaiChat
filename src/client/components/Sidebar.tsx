@@ -40,20 +40,7 @@ export default function Sidebar({
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-4">
           <div className="flex items-center gap-2 text-base md:text-lg font-semibold text-gray-900 dark:text-white/95 tracking-tight">
-            <div
-              className="w-8 h-8 rounded-2xl flex items-center justify-center shadow-[0_8px_24px_rgba(10,132,255,0.3),inset_0_1px_0_rgba(255,255,255,0.4)]"
-              style={{ background: "linear-gradient(135deg, #0A84FF, #5E5CE6)" }}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="w-5 h-5 text-white"
-              >
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </div>
+            <img width="35" height="35" src="/waichat.webp" alt="WaiChat Logo" />
             WaiChat
           </div>
           <button
