@@ -163,10 +163,38 @@ function MarkdownRenderer({ content }: { content: string }) {
 
 export default function MessageList({ messages, isStreaming, onSelectPrompt }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isUserScrolled = useRef(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Keep track of how many message blocks exist
+  const prevMessageCount = useRef(messages.length);
+
+  // Detects when the user scrolls away from the bottom
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+    // If the user is more than 20px away from the bottom, they scrolled up. Lock auto-scroll.
+    isUserScrolled.current = distanceToBottom > 20;
+  };
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // If a brand new message block was added, a new turn just started.
+    // This safely catches both new user prompts and model retries.
+    if (messages.length > prevMessageCount.current) {
+      isUserScrolled.current = false; // Break the lock!
+    }
+
+    // Update the ref for the next render
+    prevMessageCount.current = messages.length;
+
+    // Scroll down if we aren't locked
+    if (!isUserScrolled.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "auto" });
+    }
   }, [messages]);
 
   const handleCopy = async (id: string, content: string) => {
@@ -287,7 +315,11 @@ export default function MessageList({ messages, isStreaming, onSelectPrompt }: M
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
+    >
       {messages.map((m) => (
         <div
           key={m.id}
