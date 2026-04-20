@@ -163,10 +163,27 @@ function MarkdownRenderer({ content }: { content: string }) {
 
 export default function MessageList({ messages, isStreaming, onSelectPrompt }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isUserScrolled = useRef(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Detects when the user scrolls away from the bottom
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+
+    // Calculate distance from the bottom
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+    // If the user is more than 100px away from the bottom, they scrolled up. Lock auto-scroll.
+    isUserScrolled.current = distanceToBottom > 100;
+  };
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Only auto-scroll if the user hasn't manually scrolled up
+    if (!isUserScrolled.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "auto" });
+    }
   }, [messages]);
 
   const handleCopy = async (id: string, content: string) => {
@@ -287,7 +304,11 @@ export default function MessageList({ messages, isStreaming, onSelectPrompt }: M
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
+    >
       {messages.map((m) => (
         <div
           key={m.id}
