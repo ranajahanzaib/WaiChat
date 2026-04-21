@@ -32,10 +32,12 @@ export default function Sidebar({
   return (
     <>
       <aside
-        className={`absolute md:relative z-30 flex flex-col w-[280px] h-full bg-white/60 dark:bg-[#141416]/60 border-r-[0.5px] border-black/10 dark:border-white/10 shrink-0 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+        className={`absolute md:relative z-30 flex flex-col w-[280px] h-full bg-white/60 dark:bg-[#141416]/60 border-r-[0.5px] border-r-black/10 dark:border-r-white/10 border-l-[3px] shrink-0 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+          currentMode === "cloud" ? "border-l-[#0A84FF]" : "border-l-[#FF9F0A]"
+        } ${
           isOpen
             ? "translate-x-0"
-            : "-translate-x-full md:-ml-[280px] opacity-0 invisible md:visible border-none"
+            : "-translate-x-full md:-ml-[280px] opacity-0 invisible md:visible md:border-l-0 border-r-0"
         }`}
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-4">
@@ -66,7 +68,9 @@ export default function Sidebar({
                 }}
                 className={`flex-1 py-1.5 text-[13px] md:text-sm font-medium rounded-full transition-all duration-200 ${
                   currentMode === mode
-                    ? "bg-white dark:bg-white/15 text-gray-900 dark:text-white/95 shadow-sm cursor-default"
+                    ? mode === "cloud"
+                      ? "bg-[#0A84FF] text-white shadow-sm cursor-default"
+                      : "bg-[#FF9F0A] text-white shadow-sm cursor-default"
                     : "text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 cursor-pointer"
                 }`}
                 title={

@@ -373,8 +373,12 @@ export default function App() {
                 </button>
               )}
 
-              <div className="flex items-center gap-2 bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-[0.5px] border-black/5 dark:border-white/10 rounded-full pl-3 pr-2 py-1.5 transition-all">
-                <div className="w-2 h-2 rounded-full bg-[#0A84FF]"></div>
+              <div className={`flex items-center gap-2 border-[0.5px] border-black/5 dark:border-white/10 rounded-full pl-3 pr-2 py-1.5 transition-all ${
+                storageMode === "cloud"
+                  ? "bg-blue-500/10 hover:bg-blue-500/20 dark:bg-blue-500/15 dark:hover:bg-blue-500/25"
+                  : "bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/15 dark:hover:bg-amber-500/25"
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${storageMode === "cloud" ? "bg-[#0A84FF]" : "bg-[#FF9F0A]"}`}></div>
                 <div className="flex-1 min-w-0">
                   <ModelPicker
                     models={models}
