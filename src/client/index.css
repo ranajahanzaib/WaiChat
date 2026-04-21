@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-cloud: #0A84FF;
+  --color-brand-local: #FF9F0A;
+}
+
 /* Override default OS dark mode to look for the .dark class on the <html> tag instead */
 @custom-variant dark (&:where(.dark, .dark *));
 
