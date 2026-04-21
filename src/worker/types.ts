@@ -20,6 +20,7 @@ export interface Message {
   content: string;
   created_at: number;
   model?: string;
+  parent_id?: string;
 }
 
 export interface ChatRequest {
@@ -28,4 +29,5 @@ export interface ChatRequest {
   messages: { role: "user" | "assistant"; content: string }[];
   storage_mode: "cloud" | "local";
   system_prompt?: string;
+  parent_id?: string;
 }

@@ -183,8 +183,9 @@ app.post("/api/title", async (c) => {
 
 app.post("/api/chat", async (c) => {
   const body = await c.req.json<ChatRequest>();
-  const { conversation_id, model, messages, storage_mode, system_prompt } = body;
+  const { conversation_id, model, messages, storage_mode, system_prompt, parent_id } = body;
   const isCloud = storage_mode !== "local";
+  const isRetry = !!parent_id;
   const now = Date.now();
 
   // Prepend system message if provided
@@ -192,8 +193,8 @@ app.post("/api/chat", async (c) => {
     ? [{ role: "system" as const, content: system_prompt }, ...messages]
     : messages;
 
-  if (isCloud) {
-    // Save user message to D1
+  if (isCloud && !isRetry) {
+    // Save user message to D1 (only for new messages, not retries)
     const userMsg = messages[messages.length - 1];
     await saveMessage(c.env.DB, {
       id: crypto.randomUUID(),
@@ -281,6 +282,7 @@ app.post("/api/chat", async (c) => {
             content: fullContent,
             created_at: Date.now(),
             model,
+            parent_id: parent_id || undefined,
           });
           await updateConversationTimestamp(c.env.DB, conversation_id);
         } catch (e) {

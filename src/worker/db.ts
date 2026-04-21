@@ -62,7 +62,7 @@ export async function getMessages(db: D1Database, conversationId: string): Promi
 export async function saveMessage(db: D1Database, message: Message): Promise<void> {
   await db
     .prepare(
-      "INSERT INTO messages (id, conversation_id, role, content, created_at, model) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(
       message.id,
@@ -71,6 +71,7 @@ export async function saveMessage(db: D1Database, message: Message): Promise<voi
       message.content,
       message.created_at,
       message.model || null,
+      message.parent_id || null,
     )
     .run();
 }

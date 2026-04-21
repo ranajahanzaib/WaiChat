@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Message } from "../storage";
 
@@ -6,6 +6,9 @@ interface MessageListProps {
   messages: Message[];
   isStreaming: boolean;
   onSelectPrompt: (prompt: string) => void;
+  onRetry?: (messageId: string) => void;
+  activeVersions: Record<string, string>;
+  onVersionChange?: (parentId: string, messageId: string) => void;
 }
 
 function ThoughtParser({ content }: { content: string }) {
@@ -161,7 +164,29 @@ function MarkdownRenderer({ content }: { content: string }) {
   );
 }
 
-export default function MessageList({ messages, isStreaming, onSelectPrompt }: MessageListProps) {
+interface DisplayItem {
+  type: "user";
+  message: Message;
+}
+
+interface AssistantGroup {
+  type: "assistant";
+  parentId: string;
+  siblings: Message[];
+  activeMessage: Message;
+  activeIndex: number;
+}
+
+type DisplayEntry = DisplayItem | AssistantGroup;
+
+export default function MessageList({
+  messages,
+  isStreaming,
+  onSelectPrompt,
+  onRetry,
+  activeVersions,
+  onVersionChange,
+}: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isUserScrolled = useRef(false);
@@ -169,6 +194,82 @@ export default function MessageList({ messages, isStreaming, onSelectPrompt }: M
 
   // Keep track of how many message blocks exist
   const prevMessageCount = useRef(messages.length);
+
+  // Build the display list: group assistant siblings together
+  const displayItems = useMemo((): DisplayEntry[] => {
+    const items: DisplayEntry[] = [];
+    // Map: parentId -> list of sibling messages (including the original)
+    const siblingMap = new Map<string, Message[]>();
+
+    // First pass: identify all siblings and group them
+    for (const m of messages) {
+      if (m.role === "assistant" && m.parent_id) {
+        const group = siblingMap.get(m.parent_id) || [];
+        group.push(m);
+        siblingMap.set(m.parent_id, group);
+      }
+    }
+
+    // Track which parentIds we've already rendered
+    const rendered = new Set<string>();
+
+    for (const m of messages) {
+      if (m.role === "user") {
+        items.push({ type: "user", message: m });
+        continue;
+      }
+
+      // Assistant message
+      if (m.parent_id) {
+        // This is a retry sibling - skip it, it'll be rendered as part of the parent's group
+        if (!rendered.has(m.parent_id)) {
+          // Edge case: the parent might not exist in messages (shouldn't happen, but be safe)
+          // We'll handle it when we encounter the parent
+        }
+        continue;
+      }
+
+      // Original assistant message (no parent_id)
+      const parentId = m.id;
+
+      if (rendered.has(parentId)) continue;
+      rendered.add(parentId);
+
+      const retrySiblings = siblingMap.get(parentId) || [];
+      const allSiblings = [m, ...retrySiblings];
+
+      // Determine active version
+      const explicitActive = activeVersions[parentId];
+      let activeMessage: Message;
+      let activeIndex: number;
+
+      if (explicitActive) {
+        const idx = allSiblings.findIndex((s) => s.id === explicitActive);
+        if (idx >= 0) {
+          activeMessage = allSiblings[idx];
+          activeIndex = idx;
+        } else {
+          // Fallback to latest
+          activeMessage = allSiblings[allSiblings.length - 1];
+          activeIndex = allSiblings.length - 1;
+        }
+      } else {
+        // Default to latest
+        activeMessage = allSiblings[allSiblings.length - 1];
+        activeIndex = allSiblings.length - 1;
+      }
+
+      items.push({
+        type: "assistant",
+        parentId,
+        siblings: allSiblings,
+        activeMessage,
+        activeIndex,
+      });
+    }
+
+    return items;
+  }, [messages, activeVersions]);
 
   // Detects when the user scrolls away from the bottom
   const handleScroll = () => {
@@ -209,6 +310,14 @@ export default function MessageList({ messages, isStreaming, onSelectPrompt }: M
       console.error("Failed to copy text: ", err);
     }
   };
+
+  // Pre-calculate the index of the last assistant entry to avoid O(N²) lookups
+  const lastAssistantIndex = useMemo(() => {
+    for (let i = displayItems.length - 1; i >= 0; i--) {
+      if (displayItems[i].type === "assistant") return i;
+    }
+    return -1;
+  }, [displayItems]);
 
   // Empty State Hero Design
   if (messages.length === 0) {
@@ -314,73 +423,185 @@ export default function MessageList({ messages, isStreaming, onSelectPrompt }: M
     );
   }
 
+
   return (
     <div
       ref={scrollRef}
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
     >
-      {messages.map((m) => (
-        <div
-          key={m.id}
-          className={`group flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
-        >
-          <div
-            className={`max-w-[85%] md:max-w-[75%] rounded-[20px] px-5 py-4 text-[15px] md:text-base leading-relaxed ${
-              m.role === "user"
-                ? "bg-[#0A84FF] text-white rounded-br-sm"
-                : "bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10 text-gray-900 dark:text-white/95 rounded-bl-sm backdrop-blur-md"
-            }`}
-          >
-            {m.role === "assistant" ? (
-              <ThoughtParser content={m.content} />
-            ) : (
-              <p className="whitespace-pre-wrap">{m.content}</p>
-            )}
+      {displayItems.map((item, idx) => {
+        if (item.type === "user") {
+          const m = item.message;
+          return (
+            <div key={m.id} className="group flex flex-col items-end">
+              <div className="max-w-[85%] md:max-w-[75%] rounded-[20px] px-5 py-4 text-[15px] md:text-base leading-relaxed bg-[#0A84FF] text-white rounded-br-sm">
+                <p className="whitespace-pre-wrap">{m.content}</p>
+              </div>
+              {m.content && (
+                <button
+                  onClick={() => handleCopy(m.id, m.content)}
+                  className="mt-2 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
+                  aria-label="Copy message"
+                >
+                  {copiedId === m.id ? (
+                    <>
+                      <span className="text-[#34C759]">✓</span> Copied
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                      </svg>
+                      Copy
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          );
+        }
 
-            {m.role === "assistant" &&
-              (isStreaming && m.content === "" ? (
+        // Assistant group
+        const { parentId, siblings, activeMessage: m, activeIndex } = item;
+        const totalVersions = siblings.length;
+        const itemIndex = idx;
+        const isCurrentlyStreaming = isStreaming && m.content === "" && itemIndex === lastAssistantIndex;
+
+        return (
+          <div key={parentId} className="group flex flex-col items-start">
+            <div className="max-w-[85%] md:max-w-[75%] rounded-[20px] px-5 py-4 text-[15px] md:text-base leading-relaxed bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10 text-gray-900 dark:text-white/95 rounded-bl-sm backdrop-blur-md">
+              {isCurrentlyStreaming ? (
                 <span className="inline-flex gap-1 mt-2">
                   <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:150ms]" />
                   <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:300ms]" />
                 </span>
               ) : (
-                m.model && (
-                  <div className="mt-3 text-xs text-gray-400 dark:text-white/40 capitalize">
-                    {m.model.split("/").pop()?.replaceAll("-", " ")}
-                  </div>
-                )
-              ))}
-          </div>
+                <ThoughtParser content={m.content} />
+              )}
 
-          {m.content && (
-            <button
-              onClick={() => handleCopy(m.id, m.content)}
-              className="mt-2 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
-              aria-label="Copy message"
-            >
-              {copiedId === m.id ? (
-                <>
-                  <span className="text-[#34C759]">✓</span> Copied
-                </>
-              ) : (
-                <>
+              {!isCurrentlyStreaming && m.model && (
+                <div className="mt-3 text-xs text-gray-400 dark:text-white/40 capitalize">
+                  {m.model.split("/").pop()?.replaceAll("-", " ")}
+                </div>
+              )}
+            </div>
+
+            {/* Action bar: version navigator + copy + retry */}
+            <div className="mt-2 flex items-center gap-1 flex-wrap">
+              {totalVersions > 1 && (
+                <div className="flex items-center gap-0.5 mr-1">
+                  <button
+                    onClick={() => {
+                      if (activeIndex > 0) {
+                        onVersionChange?.(parentId, siblings[activeIndex - 1].id);
+                      }
+                    }}
+                    disabled={activeIndex === 0}
+                    className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
+                    aria-label="Previous version"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      strokeWidth="2.5"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <span className="text-xs text-gray-400 dark:text-white/40 font-medium tabular-nums min-w-[2.5rem] text-center select-none">
+                    {activeIndex + 1} / {totalVersions}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (activeIndex < totalVersions - 1) {
+                        onVersionChange?.(parentId, siblings[activeIndex + 1].id);
+                      }
+                    }}
+                    disabled={activeIndex === totalVersions - 1}
+                    className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
+                    aria-label="Next version"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      strokeWidth="2.5"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Copy button */}
+              {m.content && (
+                <button
+                  onClick={() => handleCopy(m.id, m.content)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
+                  aria-label="Copy message"
+                >
+                  {copiedId === m.id ? (
+                    <>
+                      <span className="text-[#34C759]">✓</span> Copied
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                      </svg>
+                      Copy
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Retry button */}
+              {m.content && !isStreaming && onRetry && (
+                <button
+                  onClick={() => onRetry(m.id)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
+                  aria-label="Retry response"
+                >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth="2"
-                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                     />
                   </svg>
-                  Copy
-                </>
+                  Retry
+                </button>
               )}
-            </button>
-          )}
-        </div>
-      ))}
+            </div>
+          </div>
+        );
+      })}
       <div ref={bottomRef} />
     </div>
   );

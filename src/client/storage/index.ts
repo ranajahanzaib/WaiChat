@@ -13,6 +13,7 @@ export interface Message {
   content: string;
   created_at: number;
   model?: string;
+  parent_id?: string;
 }
 
 export interface StorageAdapter {

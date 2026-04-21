@@ -83,6 +83,7 @@ export default function App() {
     messages,
     isStreaming,
     error,
+    activeVersions,
     loadConversations,
     selectConversation,
     newConversation,
@@ -90,6 +91,8 @@ export default function App() {
     clearConversation,
     sendMessage,
     stopGeneration,
+    retryMessage,
+    setActiveVersion,
   } = useChat(storageMode);
 
   const { models } = useModels();
@@ -433,6 +436,9 @@ export default function App() {
             messages={messages}
             isStreaming={isStreaming}
             onSelectPrompt={setPendingPrompt}
+            onRetry={(messageId) => retryMessage(messageId, model, storageMode, systemPrompt)}
+            activeVersions={activeVersions}
+            onVersionChange={setActiveVersion}
           />
           <ChatInput
             onSend={handleSend}
