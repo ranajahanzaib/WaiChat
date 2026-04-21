@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import type { Conversation, Message, StorageMode } from "../storage";
 import { createStorage } from "../storage";
 
@@ -20,6 +20,7 @@ interface UseChatReturn {
     storageMode: StorageMode,
     systemPrompt?: string,
   ) => Promise<void>;
+  stopGeneration: () => void;
 }
 
 export function useChat(storageMode: StorageMode): UseChatReturn {
@@ -29,6 +30,7 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setActiveConversation(null);
@@ -89,6 +91,13 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
     setError(null);
   }, []);
 
+  const stopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
   const sendMessage = useCallback(
     async (
       content: string,
@@ -126,9 +135,13 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
           content,
         }));
 
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: abortController.signal,
           body: JSON.stringify({
             conversation_id: conversationId,
             model,
@@ -148,38 +161,47 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
         let fullContent = "";
         let buffer = "";
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
 
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || !trimmed.startsWith("data: ")) continue;
-            if (trimmed === "data: [DONE]") continue;
-            try {
-              const json = JSON.parse(trimmed.slice(6));
-              let token: string | undefined;
-              if (typeof json.choices?.[0]?.delta?.content === "string") {
-                token = json.choices[0].delta.content;
-              } else if (typeof json.response === "string") {
-                token = json.response;
-              }
-              if (token) {
-                fullContent += token;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantMessage.id ? { ...m, content: fullContent } : m,
-                  ),
-                );
-              }
-            } catch {}
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith("data: ")) continue;
+              if (trimmed === "data: [DONE]") continue;
+              try {
+                const json = JSON.parse(trimmed.slice(6));
+                let token: string | undefined;
+                if (typeof json.choices?.[0]?.delta?.content === "string") {
+                  token = json.choices[0].delta.content;
+                } else if (typeof json.response === "string") {
+                  token = json.response;
+                }
+                if (token) {
+                  fullContent += token;
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === assistantMessage.id ? { ...m, content: fullContent } : m,
+                    ),
+                  );
+                }
+              } catch {}
+            }
+          }
+        } catch (e) {
+          if (e instanceof Error && e.name === "AbortError") {
+            console.log("[sendMessage] stream aborted");
+          } else {
+            throw e;
           }
         }
 
+        // Save whatever we got (full or partial)
         await storage.saveMessage({ conversation_id: conversationId, role: "user", content });
         await storage.saveMessage({
           conversation_id: conversationId,
@@ -188,7 +210,7 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
           model,
         });
 
-        if (messages.length === 0 && storageMode === "local") {
+        if (messages.length === 0 && storageMode === "local" && fullContent) {
           try {
             const res = await fetch("/api/title", {
               method: "POST",
@@ -229,6 +251,7 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
         setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
       } finally {
         setIsStreaming(false);
+        abortControllerRef.current = null;
       }
     },
     [isStreaming, messages, storage],
@@ -246,5 +269,6 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
     deleteConversation,
     clearConversation,
     sendMessage,
+    stopGeneration,
   };
 }

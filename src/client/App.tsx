@@ -89,6 +89,7 @@ export default function App() {
     deleteConversation,
     clearConversation,
     sendMessage,
+    stopGeneration,
   } = useChat(storageMode);
 
   const { models } = useModels();
@@ -438,6 +439,7 @@ export default function App() {
             disabled={isStreaming}
             initialValue={pendingPrompt}
             onClearInitialValue={() => setPendingPrompt("")}
+            onAbort={stopGeneration}
           />
         </main>
 
