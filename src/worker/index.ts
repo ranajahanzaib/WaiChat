@@ -1,17 +1,17 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import type { Env, ChatRequest } from "./types";
-import { streamAiResponse, generateTitle, AVAILABLE_MODELS } from "./ai";
+import { AVAILABLE_MODELS, generateTitle, streamAiResponse } from "./ai";
 import {
-  getConversations,
-  getConversation,
   createConversation,
-  updateConversationTitle,
-  updateConversationTimestamp,
   deleteConversation,
+  getConversation,
+  getConversations,
   getMessages,
   saveMessage,
+  updateConversationTimestamp,
+  updateConversationTitle,
 } from "./db";
+import type { ChatRequest, Env } from "./types";
 
 function scoreModel(id: string): number {
   let score = 0;
@@ -211,22 +211,10 @@ app.post("/api/chat", async (c) => {
     }
   }
 
-  const stream = await streamAiResponse(c.env.AI, model as any, messagesWithSystem);
+  const sourceStream = await streamAiResponse(c.env.AI, model as any, messagesWithSystem);
 
-  if (isCloud) {
-    const [streamForClient, streamForSave] = stream.tee();
-
-    // Save assistant message and update title/timestamp after stream ends
-    const savePromise = saveAssistantMessage(
-      c.env.DB,
-      conversation_id,
-      model,
-      streamForSave,
-    ).then(() => updateConversationTimestamp(c.env.DB, conversation_id));
-
-    c.executionCtx.waitUntil(savePromise);
-
-    return new Response(streamForClient, {
+  if (!isCloud) {
+    return new Response(sourceStream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -234,7 +222,81 @@ app.post("/api/chat", async (c) => {
     });
   }
 
-  return new Response(stream, {
+  // Cloud Mode: Transform stream to capture fullContent and handle abort
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const reader = sourceStream.getReader();
+  const decoder = new TextDecoder();
+  let fullContent = "";
+  let buffer = "";
+
+  const processStream = async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Try writing to client. If client aborted, this will throw.
+        try {
+          await writer.write(value);
+        } catch (e) {
+          // Client aborted the connection
+          console.log("[/api/chat] Client disconnected");
+          await reader.cancel();
+          break;
+        }
+
+        // Process chunk for saving
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith("data: ")) continue;
+          if (trimmed === "data: [DONE]") continue;
+          try {
+            const json = JSON.parse(trimmed.slice(6));
+            let token: string | undefined;
+            if (typeof json.choices?.[0]?.delta?.content === "string") {
+              token = json.choices[0].delta.content;
+            } else if (typeof json.response === "string") {
+              token = json.response;
+            }
+            if (token) fullContent += token;
+          } catch {}
+        }
+      }
+    } catch (e) {
+      console.error("[/api/chat] stream error:", e);
+    } finally {
+      if (fullContent) {
+        // Save whatever we got
+        try {
+          await saveMessage(c.env.DB, {
+            id: crypto.randomUUID(),
+            conversation_id,
+            role: "assistant",
+            content: fullContent,
+            created_at: Date.now(),
+            model,
+          });
+          await updateConversationTimestamp(c.env.DB, conversation_id);
+        } catch (e) {
+          console.error("[/api/chat] failed to save message:", e);
+        }
+      }
+      reader.releaseLock();
+      try {
+        await writer.close();
+      } catch {}
+    }
+  };
+
+  c.executionCtx.waitUntil(processStream());
+
+  return new Response(readable, {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -242,57 +304,6 @@ app.post("/api/chat", async (c) => {
   });
 });
 
-async function saveAssistantMessage(
-  db: D1Database,
-  conversationId: string,
-  model: string,
-  stream: ReadableStream,
-): Promise<void> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let fullContent = "";
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith("data: ")) continue;
-        if (trimmed === "data: [DONE]") continue;
-        try {
-          const json = JSON.parse(trimmed.slice(6));
-          let token: string | undefined;
-          if (typeof json.choices?.[0]?.delta?.content === "string") {
-            token = json.choices[0].delta.content;
-          } else if (typeof json.response === "string") {
-            token = json.response;
-          }
-          if (token) fullContent += token;
-        } catch {}
-      }
-    }
-  } catch (e) {
-    console.error("[saveAssistantMessage] stream error:", e);
-  } finally {
-    reader.releaseLock();
-  }
-
-  if (fullContent) {
-    // Re-use our saveMessage helper so the DB logic is centralized!
-    await saveMessage(db, {
-      id: crypto.randomUUID(),
-      conversation_id: conversationId,
-      role: "assistant",
-      content: fullContent,
-      created_at: Date.now(),
-      model,
-    });
-  }
-}
+// saveAssistantMessage is no longer needed as saving is handled inline with streaming
 
 export default app;
