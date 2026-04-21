@@ -143,13 +143,8 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
         }
 
         // Assistant message
+        // Skip retry siblings in the main loop; they are handled via their parent
         if (m.parent_id) {
-          // This is a retry sibling - only include if it's the active version
-          const activeId = currentActiveVersions[m.parent_id];
-          if (activeId === m.id) {
-            result.push({ role: m.role, content: m.content });
-          }
-          // Otherwise skip
           continue;
         }
 

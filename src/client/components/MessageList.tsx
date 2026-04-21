@@ -311,6 +311,14 @@ export default function MessageList({
     }
   };
 
+  // Pre-calculate the index of the last assistant entry to avoid O(N²) lookups
+  const lastAssistantIndex = useMemo(() => {
+    for (let i = displayItems.length - 1; i >= 0; i--) {
+      if (displayItems[i].type === "assistant") return i;
+    }
+    return -1;
+  }, [displayItems]);
+
   // Empty State Hero Design
   if (messages.length === 0) {
     return (
@@ -415,13 +423,14 @@ export default function MessageList({
     );
   }
 
+
   return (
     <div
       ref={scrollRef}
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
     >
-      {displayItems.map((item) => {
+      {displayItems.map((item, idx) => {
         if (item.type === "user") {
           const m = item.message;
           return (
@@ -466,12 +475,8 @@ export default function MessageList({
         // Assistant group
         const { parentId, siblings, activeMessage: m, activeIndex } = item;
         const totalVersions = siblings.length;
-        const isLastAssistant =
-          displayItems.indexOf(item) === displayItems.length - 1 ||
-          displayItems.findIndex(
-            (d, i) => i > displayItems.indexOf(item) && d.type === "assistant",
-          ) === -1;
-        const isCurrentlyStreaming = isStreaming && m.content === "" && isLastAssistant;
+        const itemIndex = idx;
+        const isCurrentlyStreaming = isStreaming && m.content === "" && itemIndex === lastAssistantIndex;
 
         return (
           <div key={parentId} className="group flex flex-col items-start">
