@@ -4,14 +4,12 @@ import { AVAILABLE_MODELS, generateTitle, streamAiResponse } from "./ai";
 import {
   createConversation,
   deleteConversation,
-  deleteMessageById,
   getConversation,
   getConversations,
   getMessageById,
   getMessages,
   getSiblingCount,
   saveMessage,
-  softDeleteMessage,
   updateConversationTimestamp,
   updateConversationTitle,
 } from "./db";
@@ -191,6 +189,7 @@ app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) =
 
     const deletedIds: string[] = [];
     const softDeletedIds: string[] = [];
+    const statements: D1PreparedStatement[] = [];
 
     if (msg.role === "user") {
       // Deleting a user message also removes the assistant turn below it.
@@ -205,34 +204,35 @@ app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) =
           // Delete all retry siblings of this assistant message
           const siblings = allMessages.filter((s) => s.parent_id === m.id);
           for (const s of siblings) {
-            await deleteMessageById(db, s.id);
+            statements.push(db.prepare("DELETE FROM messages WHERE id = ?").bind(s.id));
             deletedIds.push(s.id);
           }
           // Delete the parent assistant message itself
-          await deleteMessageById(db, m.id);
+          statements.push(db.prepare("DELETE FROM messages WHERE id = ?").bind(m.id));
           deletedIds.push(m.id);
           break;
         }
       }
 
       // Delete the user message
-      await deleteMessageById(db, messageId);
+      statements.push(db.prepare("DELETE FROM messages WHERE id = ?").bind(messageId));
       deletedIds.push(messageId);
     } else {
       // Assistant message
       if (msg.parent_id) {
-        // This is a retry sibling — hard-delete it
-        await deleteMessageById(db, messageId);
+        // This is a retry sibling - hard-delete it
+        statements.push(db.prepare("DELETE FROM messages WHERE id = ?").bind(messageId));
         deletedIds.push(messageId);
 
         // Check if the parent is now orphaned
         const remaining = await getSiblingCount(db, msg.parent_id);
-        if (remaining === 0) {
+        // remaining includes the message we're about to delete, so check <= 1
+        if (remaining <= 1) {
           // Check if parent was soft-deleted
           const parent = await getMessageById(db, msg.parent_id);
           if (parent && parent.deleted_at) {
             // Parent was soft-deleted and has no siblings left - fully remove it
-            await deleteMessageById(db, msg.parent_id);
+            statements.push(db.prepare("DELETE FROM messages WHERE id = ?").bind(msg.parent_id));
             deletedIds.push(msg.parent_id);
           }
         }
@@ -241,17 +241,24 @@ app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) =
         const siblingCount = await getSiblingCount(db, msg.id);
         if (siblingCount > 0) {
           // Has retry siblings - soft-delete (preserve for parent_id references)
-          await softDeleteMessage(db, msg.id);
+          statements.push(
+            db.prepare("UPDATE messages SET content = '', deleted_at = ? WHERE id = ?").bind(Date.now(), msg.id),
+          );
           softDeletedIds.push(msg.id);
         } else {
           // Solo message - hard-delete
-          await deleteMessageById(db, msg.id);
+          statements.push(db.prepare("DELETE FROM messages WHERE id = ?").bind(msg.id));
           deletedIds.push(msg.id);
         }
       }
     }
 
-    await updateConversationTimestamp(db, conversationId);
+    // Execute all mutations in a single batch round-trip
+    statements.push(
+      db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").bind(Date.now(), conversationId),
+    );
+    await db.batch(statements);
+
     return c.json({ success: true, deletedIds, softDeletedIds });
   } catch (e) {
     console.error("[DELETE /message] error:", e);
