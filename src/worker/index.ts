@@ -269,14 +269,25 @@ app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) =
 });
 
 // Settings
+const ALLOWED_SETTING_KEYS = ["system_prompt"];
+
 app.get("/api/settings/:key", async (c) => {
-  const value = await getSetting(c.env.DB, c.req.param("key"));
+  const key = c.req.param("key");
+  if (!ALLOWED_SETTING_KEYS.includes(key)) {
+    return c.json({ error: "Invalid setting key" }, 400);
+  }
+  const value = await getSetting(c.env.DB, key);
   return c.json({ value });
 });
 
 app.post("/api/settings/:key", async (c) => {
+  const key = c.req.param("key");
+  if (!ALLOWED_SETTING_KEYS.includes(key)) {
+    return c.json({ error: "Invalid setting key" }, 400);
+  }
   const { value } = await c.req.json<{ value: string }>();
-  await setSetting(c.env.DB, c.req.param("key"), value);
+  if (typeof value !== "string") return c.json({ error: "Invalid value" }, 400);
+  await setSetting(c.env.DB, key, value);
   return c.json({ success: true });
 });
 
