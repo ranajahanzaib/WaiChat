@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { vscDarkPlus, prism } from "react-syntax-highlighter/dist/esm/styles/prism";
 import type { Message } from "../storage";
 import ConfirmModal from "./ConfirmModal";
 
@@ -141,6 +141,20 @@ function ThoughtParser({ content }: { content: string }) {
 // Code block renderer with language bar and copy button
 function CodeBlockWrapper({ codeString, language }: { codeString: string; language: string }) {
   const [copied, setCopied] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.classList.contains('dark');
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(codeString);
@@ -149,12 +163,12 @@ function CodeBlockWrapper({ codeString, language }: { codeString: string; langua
   };
 
   return (
-    <div className="my-4 rounded-lg overflow-hidden border-[0.5px] border-black/10 dark:border-white/10 bg-[#1e1e1e] shadow-sm group">
-      <div className="flex items-center justify-between px-4 py-1.5 bg-[#2d2d2d] text-gray-300 text-xs font-mono border-b border-white/10">
+    <div className="my-4 rounded-lg overflow-hidden border-[0.5px] border-black/10 dark:border-white/10 bg-[#f8f8f8] dark:bg-[#1e1e1e] shadow-sm group">
+      <div className="flex items-center justify-between px-4 py-1.5 bg-[#eaeaeb] dark:bg-[#2d2d2d] text-gray-600 dark:text-gray-300 text-xs font-mono border-b border-black/10 dark:border-white/10">
         <span>{language}</span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
           aria-label="Copy code"
         >
           {copied ? (
@@ -182,7 +196,7 @@ function CodeBlockWrapper({ codeString, language }: { codeString: string; langua
         </button>
       </div>
       <SyntaxHighlighter
-        style={vscDarkPlus}
+        style={isDark ? vscDarkPlus : prism}
         language={language === "text" ? "text" : language}
         PreTag="div"
         customStyle={{
