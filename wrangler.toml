@@ -38,7 +38,6 @@ database_id = ""
 migrations_dir = "migrations"
 
 # Auto-Update System
-# Requires Cloudflare Workers Paid plan ($5/month) for Queue support.
 # Set GITHUB_TOKEN secret via: wrangler secret put GITHUB_TOKEN
 # Set GITHUB_REPO to "owner/repo" format for the user's deployed repo.
 
