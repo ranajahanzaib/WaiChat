@@ -131,7 +131,16 @@ export async function getChangedFiles(
   }
 
   return data.files
-    .filter((f) => !isExcluded(f.filename))
+    .filter((f) => {
+      // Never overwrite or touch excluded paths
+      if (isExcluded(f.filename)) return false;
+
+      // SAFETY: If this is a rename, ensure we don't delete an excluded path
+      // (e.g. if the upstream repo renamed a file to something we treat as a secret)
+      if (f.previous_filename && isExcluded(f.previous_filename)) return false;
+
+      return true;
+    })
     .map((f) => ({
       path: f.filename,
       previousPath: f.previous_filename,

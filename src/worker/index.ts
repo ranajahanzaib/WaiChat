@@ -481,35 +481,33 @@ app.get("/api/updates/status", async (c) => {
  * Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal.
  */
 function compareVersions(v1: string, v2: string): number {
-  const parse = (v: string) =>
-    v
-      .replace(/^v/, "")
-      .split(/[.-]/)
-      .map((s) => (isNaN(Number(s)) ? s : Number(s)));
-  const p1 = parse(v1);
-  const p2 = parse(v2);
-  const len = Math.max(p1.length, p2.length);
+  // Separate base version from pre-release tag
+  const [base1, pre1] = v1.replace(/^v/, "").split("-");
+  const [base2, pre2] = v2.replace(/^v/, "").split("-");
 
-  for (let i = 0; i < len; i++) {
-    const s1 = p1[i];
-    const s2 = p2[i];
+  // Compare base versions (x.y.z)
+  const b1 = base1.split(".").map((s) => Number(s) || 0);
+  const b2 = base2.split(".").map((s) => Number(s) || 0);
+  const maxLen = Math.max(b1.length, b2.length);
 
-    if (s1 === s2) continue;
-
-    // Pre-release precedence: 1.0.0 > 1.0.0-alpha
-    if (s1 === undefined) return typeof s2 === "string" ? 1 : -1;
-    if (s2 === undefined) return typeof s1 === "string" ? -1 : 1;
-
-    if (typeof s1 === "number" && typeof s2 === "number") {
-      if (s1 > s2) return 1;
-      if (s1 < s2) return -1;
-    } else {
-      const str1 = String(s1);
-      const str2 = String(s2);
-      if (str1 > str2) return 1;
-      if (str1 < str2) return -1;
-    }
+  for (let i = 0; i < maxLen; i++) {
+    const s1 = b1[i] ?? 0;
+    const s2 = b2[i] ?? 0;
+    if (s1 > s2) return 1;
+    if (s1 < s2) return -1;
   }
+
+  // Compare pre-releases if base versions are identical
+  // SemVer rule: a normal version has higher precedence than a pre-release
+  if (!pre1 && pre2) return 1; // v1 is stable, v2 is pre-release (v1 > v2)
+  if (pre1 && !pre2) return -1; // v1 is pre-release, v2 is stable (v1 < v2)
+
+  // Both have pre-releases, compare them as strings
+  if (pre1 && pre2) {
+    if (pre1 > pre2) return 1;
+    if (pre1 < pre2) return -1;
+  }
+
   return 0;
 }
 
