@@ -43,6 +43,13 @@ export interface CommitFile {
   content: string;
 }
 
+export interface GitTreeItem {
+  path: string;
+  mode: "100644" | "100755" | "040000" | "160000" | "120000";
+  type: "blob" | "tree" | "commit";
+  sha: string | null;
+}
+
 function isExcluded(path: string): boolean {
   // Never overwrite secrets or infrastructure config
   if (EXCLUDED_PATHS.includes(path)) return true;
@@ -99,6 +106,14 @@ export async function getChangedFiles(
 
   if (!Array.isArray(data.files)) {
     throw new Error("Compare API returned unexpected format: missing files array");
+  }
+
+  // GitHub Compare API limits the files array to 300.
+  // If we hit this, we must abort to prevent an incomplete/broken update.
+  if (data.files.length >= 300) {
+    throw new Error(
+      `Update too large: ${data.files.length} files changed. The auto-updater currently supports a maximum of 300 files per release to ensure integrity.`,
+    );
   }
 
   return data.files
@@ -180,7 +195,7 @@ export async function commitChangesToGitHub(
   const baseTreeSha = tree.sha;
 
   // 4. Create blobs for new/updated files in parallel
-  const treeItems = await Promise.all(
+  const treeItems: GitTreeItem[] = await Promise.all(
     filesToUpdate.map(async (file) => {
       const blobResponse = await fetch(`https://api.github.com/repos/${repo}/git/blobs`, {
         method: "POST",
@@ -208,7 +223,7 @@ export async function commitChangesToGitHub(
       path,
       mode: "100644",
       type: "blob",
-      sha: null as any,
+      sha: null,
     });
   }
 

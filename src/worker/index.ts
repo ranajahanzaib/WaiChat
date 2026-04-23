@@ -586,10 +586,13 @@ app.post("/api/updates/rollback", async (c) => {
 
     // TODO: Implement rollback logic.
     // This would fetch a specific release tag, create a commit, and update state.
-    return c.json({
-      message: `Rollback to ${version} queued`,
-      status: "queued",
-    });
+    return c.json(
+      {
+        message: "Rollback is not yet implemented",
+        error: "Feature coming soon",
+      },
+      501,
+    );
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : "Rollback failed" }, 500);
   }
