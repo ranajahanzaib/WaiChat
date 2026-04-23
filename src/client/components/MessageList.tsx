@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus, prism } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { prism, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import remarkGfm from "remark-gfm";
 import type { Message } from "../storage";
 import ConfirmModal from "./ConfirmModal";
 
@@ -195,30 +195,20 @@ function CodeBlockWrapper({ codeString, language }: { codeString: string; langua
         <span>{language}</span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className="flex items-center justify-center p-1.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
           aria-label="Copy code"
         >
           {copied ? (
-            <>
-              <span className="text-[#34C759]">✓</span> Copied
-            </>
+            <span className="text-[#34C759] text-[10px] font-bold">✓</span>
           ) : (
-            <>
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-              Copy Code
-            </>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+              />
+            </svg>
           )}
         </button>
       </div>
@@ -248,7 +238,7 @@ function MarkdownRenderer({ content }: { content: string }) {
         pre: ({ children }: React.ComponentPropsWithoutRef<"pre">) => {
           let codeString = "";
           let language = "text";
-          
+
           if (children && React.isValidElement(children)) {
             const childProps = children.props as { children?: React.ReactNode; className?: string };
             codeString = String(childProps.children).replace(/\n$/, "");
@@ -259,25 +249,42 @@ function MarkdownRenderer({ content }: { content: string }) {
           } else {
             codeString = String(children).replace(/\n$/, "");
           }
-          
+
           return <CodeBlockWrapper codeString={codeString} language={language} />;
         },
         code: ({ children, className, ...props }: React.ComponentPropsWithoutRef<"code">) => (
-          <code className="bg-black/5 dark:bg-white/10 rounded px-1.5 py-0.5 text-sm font-mono text-[#0A84FF]" {...props}>
+          <code
+            className="bg-black/5 dark:bg-white/10 rounded px-1.5 py-0.5 text-sm font-mono text-[#0A84FF]"
+            {...props}
+          >
             {children}
           </code>
         ),
-        p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+        p: ({ children }) => (
+          <p className="mb-4 last:mb-0 leading-[1.75] text-[15px] md:text-[16px]">{children}</p>
+        ),
         ul: ({ children }) => (
-          <ul className="list-disc list-outside ml-5 mb-3 space-y-1.5">{children}</ul>
+          <ul className="list-disc list-outside ml-6 mb-4 space-y-2 text-[15px] md:text-[16px]">
+            {children}
+          </ul>
         ),
         ol: ({ children }) => (
-          <ol className="list-decimal list-outside ml-5 mb-3 space-y-1.5">{children}</ol>
+          <ol className="list-decimal list-outside ml-6 mb-4 space-y-2 text-[15px] md:text-[16px]">
+            {children}
+          </ol>
         ),
         a: ({ children, href }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#0A84FF] hover:underline">
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#0A84FF] hover:underline"
+          >
             {children}
           </a>
+        ),
+        hr: () => (
+          <hr className="my-8 border-black/10 dark:border-white/10" />
         ),
         blockquote: ({ children }) => (
           <blockquote className="border-l-4 border-black/20 dark:border-white/20 pl-4 py-1 my-3 text-gray-700 dark:text-white/70 italic">
@@ -285,14 +292,16 @@ function MarkdownRenderer({ content }: { content: string }) {
           </blockquote>
         ),
         table: ({ children }) => (
-          <div className="overflow-x-auto mb-4 border-[0.5px] border-black/10 dark:border-white/10 rounded-lg">
+          <div className="overflow-x-auto my-6 border-[0.5px] border-black/10 dark:border-white/10 rounded-lg">
             <table className="min-w-full divide-y divide-black/10 dark:divide-white/10 text-sm">
               {children}
             </table>
           </div>
         ),
         thead: ({ children }) => <thead className="bg-black/5 dark:bg-white/5">{children}</thead>,
-        tbody: ({ children }) => <tbody className="divide-y divide-black/10 dark:divide-white/10">{children}</tbody>,
+        tbody: ({ children }) => (
+          <tbody className="divide-y divide-black/10 dark:divide-white/10">{children}</tbody>
+        ),
         tr: ({ children }) => <tr>{children}</tr>,
         th: ({ children }) => (
           <th className="px-4 py-3 text-left font-medium text-gray-900 dark:text-white/95">
@@ -300,9 +309,7 @@ function MarkdownRenderer({ content }: { content: string }) {
           </th>
         ),
         td: ({ children }) => (
-          <td className="px-4 py-3 text-gray-600 dark:text-white/80">
-            {children}
-          </td>
+          <td className="px-4 py-3 text-gray-600 dark:text-white/80">{children}</td>
         ),
       }}
     >
@@ -339,7 +346,11 @@ export default function MessageList({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isUserScrolled = useRef(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; role: "user" | "assistant"; isLastVersion: boolean } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    role: "user" | "assistant";
+    isLastVersion: boolean;
+  } | null>(null);
 
   // Keep track of how many message blocks exist
   const prevMessageCount = useRef(messages.length);
@@ -487,7 +498,7 @@ export default function MessageList({
           conversations.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-[800px] mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl mb-10">
           <button
             type="button"
             onClick={() =>
@@ -578,224 +589,186 @@ export default function MessageList({
     );
   }
 
-
   return (
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
+      className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
     >
-      {displayItems.map((item, idx) => {
-        if (item.type === "user") {
-          const m = item.message;
-          return (
-            <div key={m.id} className="group flex flex-col items-end">
-              <div className="max-w-[85%] md:max-w-[75%] rounded-[20px] px-5 py-4 text-[15px] md:text-base leading-relaxed bg-[#0A84FF] text-white rounded-br-sm">
-                <p className="whitespace-pre-wrap">{m.content}</p>
+      <div className="max-w-4xl mx-auto px-4 md:px-8 py-10 space-y-12">
+        {displayItems.map((item, idx) => {
+          const isLast = idx === displayItems.length - 1;
+          if (item.type === "user") {
+            const m = item.message;
+            return (
+              <div key={m.id} className="group flex flex-col items-end">
+                <div className="max-w-[90%] rounded-2xl px-5 py-3.5 text-[15px] md:text-base leading-relaxed bg-black/5 dark:bg-white/5 text-gray-900 dark:text-white/95">
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                </div>
+                <div className="mt-2 flex items-center gap-1">
+                  {m.content && (
+                    <button
+                      onClick={() => handleCopy(m.id, m.content)}
+                      className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
+                      aria-label="Copy message"
+                    >
+                      {copiedId === m.id ? (
+                        <span className="text-[#34C759] text-[10px] font-bold">✓</span>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                  {!isStreaming && onDelete && (
+                    <button
+                      onClick={() =>
+                        setDeleteTarget({ id: m.id, role: "user", isLastVersion: false })
+                      }
+                      className={`p-1.5 text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
+                      aria-label="Delete message"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="mt-2 flex items-center gap-1">
+            );
+          }
+
+          // Assistant group
+          const { parentId, siblings, activeMessage: m, activeIndex } = item;
+          const totalVersions = siblings.length;
+          const itemIndex = idx;
+          const isCurrentlyStreaming =
+            isStreaming && m.content === "" && itemIndex === lastAssistantIndex;
+
+          return (
+            <div key={parentId} className="group flex flex-col items-start w-full">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
+                  <img src="/waichat.webp" alt="WaiChat" className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">
+                  {m.model ? m.model.split("/").pop()?.replaceAll("-", " ") : "WaiChat"}
+                </span>
+              </div>
+
+              <div className="w-full text-[15px] md:text-[16px] leading-relaxed text-gray-900 dark:text-white/95">
+                {isCurrentlyStreaming ? (
+                  <span className="inline-flex gap-1 mt-2">
+                    <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:300ms]" />
+                  </span>
+                ) : (
+                  <ThoughtParser content={m.content} />
+                )}
+              </div>
+
+              <div className="mt-4 flex items-center gap-1 flex-wrap">
+                {totalVersions > 1 && (
+                  <div className="flex items-center gap-0.5 mr-2 bg-black/5 dark:bg-white/5 rounded-md px-1 py-0.5">
+                    <button
+                      onClick={() => {
+                        if (activeIndex > 0) {
+                          onVersionChange?.(parentId, siblings[activeIndex - 1].id);
+                        }
+                      }}
+                      disabled={activeIndex === 0}
+                      className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
+                      aria-label="Previous version"
+                    >
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        strokeWidth="2.5"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <span className="text-[10px] text-gray-400 dark:text-white/40 font-bold tabular-nums min-w-[2rem] text-center select-none uppercase">
+                      {activeIndex + 1} / {totalVersions}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (activeIndex < totalVersions - 1) {
+                          onVersionChange?.(parentId, siblings[activeIndex + 1].id);
+                        }
+                      }}
+                      disabled={activeIndex === totalVersions - 1}
+                      className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
+                      aria-label="Next version"
+                    >
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        strokeWidth="2.5"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
                 {m.content && (
                   <button
                     onClick={() => handleCopy(m.id, m.content)}
-                    className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
+                    className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
                     aria-label="Copy message"
                   >
                     {copiedId === m.id ? (
-                      <>
-                        <span className="text-[#34C759]">✓</span> Copied
-                      </>
+                      <span className="text-[#34C759] text-[10px] font-bold">✓</span>
                     ) : (
-                      <>
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                          />
-                        </svg>
-                        Copy
-                      </>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
                     )}
                   </button>
                 )}
-                {!isStreaming && onDelete && (
+
+                {m.content && !isStreaming && onRetry && (
                   <button
-                    onClick={() => setDeleteTarget({ id: m.id, role: "user", isLastVersion: false })}
-                    className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
-                    aria-label="Delete message"
+                    onClick={() => onRetry(m.id)}
+                    className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
+                    aria-label="Retry response"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    Delete
+                  </button>
+                )}
+
+                {m.content && !isStreaming && onDelete && (
+                  <button
+                    onClick={() =>
+                      setDeleteTarget({
+                        id: m.id,
+                        role: "assistant",
+                        isLastVersion: totalVersions === 1 && !!m.parent_id,
+                      })
+                    }
+                    className={`p-1.5 text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
+                    aria-label="Delete response"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
                   </button>
                 )}
               </div>
             </div>
           );
-        }
-
-        // Assistant group
-        const { parentId, siblings, activeMessage: m, activeIndex } = item;
-        const totalVersions = siblings.length;
-        const itemIndex = idx;
-        const isCurrentlyStreaming = isStreaming && m.content === "" && itemIndex === lastAssistantIndex;
-
-        return (
-          <div key={parentId} className="group flex flex-col items-start">
-            <div className="max-w-[85%] md:max-w-[75%] rounded-[20px] px-5 py-4 text-[15px] md:text-base leading-relaxed bg-white/60 dark:bg-white/5 border-[0.5px] border-black/10 dark:border-white/10 text-gray-900 dark:text-white/95 rounded-bl-sm backdrop-blur-md">
-              {isCurrentlyStreaming ? (
-                <span className="inline-flex gap-1 mt-2">
-                  <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 bg-gray-400 dark:bg-white/40 rounded-full animate-bounce [animation-delay:300ms]" />
-                </span>
-              ) : (
-                <ThoughtParser content={m.content} />
-              )}
-
-              {!isCurrentlyStreaming && m.model && (
-                <div className="mt-3 text-xs text-gray-400 dark:text-white/40 capitalize">
-                  {m.model.split("/").pop()?.replaceAll("-", " ")}
-                </div>
-              )}
-            </div>
-
-            {/* Action bar: version navigator + copy + retry */}
-            <div className="mt-2 flex items-center gap-1 flex-wrap">
-              {totalVersions > 1 && (
-                <div className="flex items-center gap-0.5 mr-1">
-                  <button
-                    onClick={() => {
-                      if (activeIndex > 0) {
-                        onVersionChange?.(parentId, siblings[activeIndex - 1].id);
-                      }
-                    }}
-                    disabled={activeIndex === 0}
-                    className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
-                    aria-label="Previous version"
-                  >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      strokeWidth="2.5"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <span className="text-xs text-gray-400 dark:text-white/40 font-medium tabular-nums min-w-[2.5rem] text-center select-none">
-                    {activeIndex + 1} / {totalVersions}
-                  </span>
-                  <button
-                    onClick={() => {
-                      if (activeIndex < totalVersions - 1) {
-                        onVersionChange?.(parentId, siblings[activeIndex + 1].id);
-                      }
-                    }}
-                    disabled={activeIndex === totalVersions - 1}
-                    className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
-                    aria-label="Next version"
-                  >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      strokeWidth="2.5"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-
-              {/* Copy button */}
-              {m.content && (
-                <button
-                  onClick={() => handleCopy(m.id, m.content)}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
-                  aria-label="Copy message"
-                >
-                  {copiedId === m.id ? (
-                    <>
-                      <span className="text-[#34C759]">✓</span> Copied
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                      Copy
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* Retry button */}
-              {m.content && !isStreaming && onRetry && (
-                <button
-                  onClick={() => onRetry(m.id)}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
-                  aria-label="Retry response"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                  Retry
-                </button>
-              )}
-
-              {/* Delete button */}
-              {m.content && !isStreaming && onDelete && (
-                <button
-                  onClick={() => setDeleteTarget({ id: m.id, role: "assistant", isLastVersion: totalVersions === 1 && !!m.parent_id })}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity flex items-center gap-1.5 cursor-pointer"
-                  aria-label="Delete response"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                  Delete
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-      <div ref={bottomRef} />
+        })}
+      </div>
+      <div ref={bottomRef} className="h-4" />
 
       {/* Delete confirmation modal */}
       <ConfirmModal
