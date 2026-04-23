@@ -29,13 +29,14 @@ const UPSTREAM_REPO = "waichat";
 
 export interface FileChange {
   path: string;
+  previousPath?: string;
   status: "added" | "modified" | "removed" | "renamed";
   downloadUrl: string;
 }
 
 export interface CommitFile {
   path: string;
-  content: string;
+  content: Uint8Array;
 }
 
 export interface GitTreeItem {
@@ -57,9 +58,9 @@ function isExcluded(path: string): boolean {
 }
 
 /** UTF-8 safe Base64 encoding using Worker's nodejs_compat. */
-function toBase64(str: string): string {
+function toBase64(data: string | Uint8Array): string {
   // Use globalThis cast to avoid TypeScript errors without @types/node
-  return (globalThis as any).Buffer.from(str).toString("base64");
+  return (globalThis as any).Buffer.from(data).toString("base64");
 }
 
 /** Helper to process an array in chunks to respect subrequest limits. */
@@ -111,6 +112,7 @@ export async function getChangedFiles(
   const data = (await response.json()) as {
     files: {
       filename: string;
+      previous_filename?: string;
       status: "added" | "modified" | "removed" | "renamed";
       raw_url: string;
     }[];
@@ -132,6 +134,7 @@ export async function getChangedFiles(
     .filter((f) => !isExcluded(f.filename))
     .map((f) => ({
       path: f.filename,
+      previousPath: f.previous_filename,
       status: f.status,
       downloadUrl: f.raw_url,
     }));
@@ -156,7 +159,7 @@ export async function fetchChangedFiles(env: Env, changes: FileChange[]): Promis
       throw new Error(`Failed to fetch ${change.path}: HTTP ${response.status}`);
     }
 
-    const content = await response.text();
+    const content = new Uint8Array(await response.arrayBuffer());
     return { path: change.path, content };
   });
 }

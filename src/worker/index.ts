@@ -491,13 +491,19 @@ function compareVersions(v1: string, v2: string): number {
   const len = Math.max(p1.length, p2.length);
 
   for (let i = 0; i < len; i++) {
-    const s1 = p1[i] ?? 0;
-    const s2 = p2[i] ?? 0;
+    const s1 = p1[i];
+    const s2 = p2[i];
+
+    if (s1 === s2) continue;
+
+    // Pre-release precedence: 1.0.0 > 1.0.0-alpha
+    if (s1 === undefined) return typeof s2 === "string" ? 1 : -1;
+    if (s2 === undefined) return typeof s1 === "string" ? -1 : 1;
+
     if (typeof s1 === "number" && typeof s2 === "number") {
       if (s1 > s2) return 1;
       if (s1 < s2) return -1;
     } else {
-      // String comparison for pre-release tags like 'alpha', 'beta'
       const str1 = String(s1);
       const str2 = String(s2);
       if (str1 > str2) return 1;
@@ -749,7 +755,14 @@ async function performUpdate(env: Env, job: UpdateQueueMessage) {
 
     // Fetch contents for added/modified files
     const filesToCommit = await fetchChangedFiles(env, changes);
-    const filesToDelete = changes.filter((c) => c.status === "removed").map((c) => c.path);
+    // Identify exactly what needs to be deleted (removed or renamed files)
+    const filesToDelete = changes.flatMap((c) =>
+      c.status === "removed"
+        ? [c.path]
+        : c.status === "renamed" && c.previousPath
+          ? [c.previousPath]
+          : [],
+    );
     console.log(
       `[Queue] Fetched ${filesToCommit.length} files to update, ${filesToDelete.length} to delete`,
     );
