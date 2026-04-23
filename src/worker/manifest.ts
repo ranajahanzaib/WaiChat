@@ -76,7 +76,7 @@ export async function fetchLatestRelease(
 
     // "pre-release" channel: list all releases, pick the most recent (first)
     const response = await fetch(
-      `https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/releases?per_page=5`,
+      `https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/releases?per_page=30`,
       { headers },
     );
 

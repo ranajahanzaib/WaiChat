@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { UpdateChannel } from "../../worker/manifest";
 
 interface UpdateStatusData {
   current_version: string;
@@ -94,7 +95,7 @@ export default function UpdateStatus() {
 
     // Optimistic update
     const oldData = data;
-    setData({ ...data, channel: newChannel as any });
+    setData({ ...data, channel: newChannel as UpdateChannel });
     setChangingChannel(true);
 
     try {

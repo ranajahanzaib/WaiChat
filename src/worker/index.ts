@@ -749,11 +749,11 @@ async function performUpdate(env: Env, job: UpdateQueueMessage) {
       duration_ms: duration,
     });
 
-    // Update main state to show failure in UI
+    // Update main state to show failure (with retry info) in UI
     await updateCheckStatus(env.DB, job.channel, {
       last_check: new Date().toISOString(),
-      last_status: "failed",
-      last_error: errorMessage.substring(0, 500),
+      last_status: "failed", // We keep "failed" but the error message will explain the retry
+      last_error: `${errorMessage.substring(0, 400)} (Retrying...)`,
     });
 
     throw error; // Re-throw to trigger retry
