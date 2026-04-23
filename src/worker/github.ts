@@ -15,25 +15,12 @@ import type { Env } from "./types";
 const EXCLUDED_PATHS = [
   "wrangler.toml",
   "wrangler.local.toml",
-  "wrangler.local.toml.example",
   ".env",
-  ".env.local",
-  ".env.example",
   ".dev.vars",
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "tsconfig.json",
-  "vite.config.ts",
-  ".prettierrc",
-  ".gitignore",
-  "LICENSE",
-  "UPDATE_MANIFEST.json",
 ];
 
 /** Path prefixes that should never be auto-updated. */
 const EXCLUDED_PREFIXES = [
-  "migrations/", // User's DB state - never overwrite applied migrations
   ".git/",
   "node_modules/",
   "dist/",
@@ -57,8 +44,24 @@ export interface CommitFile {
 }
 
 function isExcluded(path: string): boolean {
+  // Never overwrite secrets or infrastructure config
   if (EXCLUDED_PATHS.includes(path)) return true;
+
+  // Never overwrite local databases
+  if (path.endsWith(".sqlite") || path.endsWith(".db")) return true;
+
+  // Never touch internal folders
   return EXCLUDED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+/** UTF-8 safe Base64 encoding for Workers. */
+function toBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 /**
@@ -116,24 +119,22 @@ export async function getChangedFiles(
  * Skips removed files - those are handled separately during commit.
  */
 export async function fetchChangedFiles(env: Env, changes: FileChange[]): Promise<CommitFile[]> {
-  const filesToCommit: CommitFile[] = [];
+  return Promise.all(
+    changes
+      .filter((change) => change.status !== "removed")
+      .map(async (change) => {
+        const response = await fetch(change.downloadUrl, {
+          headers: { "User-Agent": "waichat-updater/1.0" },
+        });
 
-  for (const change of changes) {
-    if (change.status === "removed") continue; // Handled separately
+        if (!response.ok) {
+          throw new Error(`Failed to fetch ${change.path}: HTTP ${response.status}`);
+        }
 
-    const response = await fetch(change.downloadUrl, {
-      headers: { "User-Agent": "waichat-updater/1.0" },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${change.path}: HTTP ${response.status}`);
-    }
-
-    const content = await response.text();
-    filesToCommit.push({ path: change.path, content });
-  }
-
-  return filesToCommit;
+        const content = await response.text();
+        return { path: change.path, content };
+      }),
+  );
 }
 
 /**
@@ -169,7 +170,7 @@ export async function commitChangesToGitHub(
 
     const body: Record<string, unknown> = {
       message: `chore(auto-update): ${version} - update ${file.path}`,
-      content: btoa(file.content),
+      content: toBase64(file.content),
       branch: "main",
     };
 
@@ -232,22 +233,20 @@ export async function commitChangesToGitHub(
 
 /** Get a file's SHA from the user's repo (needed for updates and deletes). */
 async function getFileSha(token: string, repo: string, path: string): Promise<string | undefined> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "User-Agent": "waichat-updater/1.0",
-        "X-GitHub-Api-Version": "2022-11-28",
-        Accept: "application/vnd.github+json",
-      },
-    });
+  const response = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "User-Agent": "waichat-updater/1.0",
+      "X-GitHub-Api-Version": "2022-11-28",
+      Accept: "application/vnd.github+json",
+    },
+  });
 
-    if (response.ok) {
-      const data = (await response.json()) as { sha: string };
-      return data.sha;
-    }
-    return undefined; // 404 = new file
-  } catch {
-    return undefined;
+  if (response.status === 404) return undefined;
+  if (!response.ok) {
+    throw new Error(`GitHub API error getting SHA for ${path}: HTTP ${response.status}`);
   }
+
+  const data = (await response.json()) as { sha: string };
+  return data.sha;
 }

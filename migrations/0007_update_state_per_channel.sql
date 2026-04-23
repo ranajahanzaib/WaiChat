@@ -14,7 +14,7 @@ CREATE TABLE update_state (
 
 -- Seed both channels with the current version
 INSERT INTO update_state (channel, current_version, last_check, last_status)
-VALUES ('stable', 'v0.1.3-alpha', datetime('now'), 'up_to_date');
+VALUES ('stable', 'v0.1.4-alpha', datetime('now'), 'up_to_date');
 
 INSERT INTO update_state (channel, current_version, last_check, last_status)
-VALUES ('pre-release', 'v0.1.3-alpha', datetime('now'), 'up_to_date');
+VALUES ('pre-release', 'v0.1.4-alpha', datetime('now'), 'up_to_date');
