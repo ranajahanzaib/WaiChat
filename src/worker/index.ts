@@ -476,10 +476,41 @@ app.get("/api/updates/status", async (c) => {
   }
 });
 
+/**
+ * Compares two SemVer strings.
+ * Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal.
+ */
+function compareVersions(v1: string, v2: string): number {
+  const parse = (v: string) =>
+    v
+      .replace(/^v/, "")
+      .split(/[.-]/)
+      .map((s) => (isNaN(Number(s)) ? s : Number(s)));
+  const p1 = parse(v1);
+  const p2 = parse(v2);
+  const len = Math.max(p1.length, p2.length);
+
+  for (let i = 0; i < len; i++) {
+    const s1 = p1[i] ?? 0;
+    const s2 = p2[i] ?? 0;
+    if (typeof s1 === "number" && typeof s2 === "number") {
+      if (s1 > s2) return 1;
+      if (s1 < s2) return -1;
+    } else {
+      // String comparison for pre-release tags like 'alpha', 'beta'
+      const str1 = String(s1);
+      const str2 = String(s2);
+      if (str1 > str2) return 1;
+      if (str1 < str2) return -1;
+    }
+  }
+  return 0;
+}
+
 /** POST /api/updates/check - Manually check for updates (does NOT queue work). */
 app.post("/api/updates/check", async (c) => {
   try {
-    // 1. Read channel preference, fetch latest release from upstream
+    // Read channel preference, fetch latest release from upstream
     const channel = ((await getSetting(c.env.DB, "update_channel")) || "stable") as UpdateChannel;
     const release = await fetchLatestRelease(c.env, channel);
     if (!release) {
@@ -498,8 +529,9 @@ app.post("/api/updates/check", async (c) => {
       });
     }
 
-    // 2. Compare against running version
-    if (APP_VERSION === release.version) {
+    // Compare against running version: only available if upstream is strictly newer
+    const isAvailable = compareVersions(release.version, APP_VERSION) > 0;
+    if (!isAvailable) {
       await updateCheckStatus(c.env.DB, channel, {
         last_check: new Date().toISOString(),
         last_status: "up_to_date",
@@ -507,14 +539,17 @@ app.post("/api/updates/check", async (c) => {
         last_error: null,
       });
       return c.json({
-        message: "Already up to date",
+        message:
+          release.version === APP_VERSION
+            ? "Already up to date"
+            : `Local version (${APP_VERSION}) is newer than upstream (${release.version})`,
         status: "up_to_date",
         current_version: APP_VERSION,
         latest_version: release.version,
       });
     }
 
-    // 3. Mark as update available
+    // Mark as update available
     await updateCheckStatus(c.env.DB, channel, {
       last_check: new Date().toISOString(),
       last_status: "available",
@@ -608,7 +643,7 @@ async function handleScheduled(event: ScheduledEvent, env: Env, ctx: ExecutionCo
   try {
     console.log("[Cron] Update check starting");
 
-    // 1. Fetch latest release from upstream
+    // Fetch latest release from upstream
     const release = await fetchLatestRelease(env, channel);
     if (!release) {
       console.log(`[Cron] No releases found on ${channel} channel`);
@@ -621,9 +656,10 @@ async function handleScheduled(event: ScheduledEvent, env: Env, ctx: ExecutionCo
       return;
     }
 
-    // 2. Compare against running version
-    if (APP_VERSION === release.version) {
-      console.log(`[Cron] Up to date: ${APP_VERSION}`);
+    // Compare against running version: only available if upstream is strictly newer
+    const isAvailable = compareVersions(release.version, APP_VERSION) > 0;
+    if (!isAvailable) {
+      console.log(`[Cron] Up to date (Local: ${APP_VERSION}, Upstream: ${release.version})`);
       await updateCheckStatus(env.DB, channel, {
         last_check: new Date().toISOString(),
         last_status: "up_to_date",
@@ -635,7 +671,7 @@ async function handleScheduled(event: ScheduledEvent, env: Env, ctx: ExecutionCo
 
     console.log(`[Cron] Update available: ${APP_VERSION} → ${release.version}`);
 
-    // 3. Queue the update job
+    // Queue the update job
     await env.UPDATE_QUEUE.send({
       type: "update",
       fromVersion: APP_VERSION,
@@ -644,7 +680,7 @@ async function handleScheduled(event: ScheduledEvent, env: Env, ctx: ExecutionCo
       triggeredAt: new Date().toISOString(),
     });
 
-    // 5. Update state to "queued"
+    // Update state to "queued"
     await updateCheckStatus(env.DB, channel, {
       last_check: new Date().toISOString(),
       last_status: "queued",

@@ -12,12 +12,7 @@
 import type { Env } from "./types";
 
 /** Paths that should NEVER be auto-updated (user-specific configs). */
-const EXCLUDED_PATHS = [
-  "wrangler.toml",
-  "wrangler.local.toml",
-  ".env",
-  ".dev.vars",
-];
+const EXCLUDED_PATHS = ["wrangler.toml", "wrangler.local.toml", ".env", ".dev.vars"];
 
 /** Path prefixes that should never be auto-updated. */
 const EXCLUDED_PREFIXES = [
@@ -67,6 +62,21 @@ function toBase64(str: string): string {
   return (globalThis as any).Buffer.from(str).toString("base64");
 }
 
+/** Helper to process an array in chunks to respect subrequest limits. */
+async function processInChunks<T, R>(
+  items: T[],
+  chunkSize: number,
+  processor: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const chunkResults = await Promise.all(chunk.map(processor));
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
 /**
  * Use the GitHub Compare API to get the exact list of files that changed
  * between two version tags. Returns only files that aren't excluded.
@@ -85,6 +95,8 @@ export async function getChangedFiles(
         "User-Agent": "waichat-updater/1.0",
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
+        // Use user's token even for upstream checks to avoid unauthenticated rate limits
+        Authorization: `Bearer ${env.GITHUB_TOKEN}`,
       },
     },
   );
@@ -127,25 +139,26 @@ export async function getChangedFiles(
 
 /**
  * Fetch file contents for all changed files (additions + modifications).
- * Skips removed files - those are handled separately during commit.
+ * Processes in chunks of 10 to stay within Cloudflare subrequest limits.
  */
 export async function fetchChangedFiles(env: Env, changes: FileChange[]): Promise<CommitFile[]> {
-  return Promise.all(
-    changes
-      .filter((change) => change.status !== "removed")
-      .map(async (change) => {
-        const response = await fetch(change.downloadUrl, {
-          headers: { "User-Agent": "waichat-updater/1.0" },
-        });
+  const filteredChanges = changes.filter((change) => change.status !== "removed");
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch ${change.path}: HTTP ${response.status}`);
-        }
+  return processInChunks(filteredChanges, 10, async (change) => {
+    const response = await fetch(change.downloadUrl, {
+      headers: {
+        "User-Agent": "waichat-updater/1.0",
+        Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      },
+    });
 
-        const content = await response.text();
-        return { path: change.path, content };
-      }),
-  );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${change.path}: HTTP ${response.status}`);
+    }
+
+    const content = await response.text();
+    return { path: change.path, content };
+  });
 }
 
 /**
@@ -171,52 +184,56 @@ export async function commitChangesToGitHub(
     Accept: "application/vnd.github+json",
   };
 
-  // 1. Detect default branch
+  // Detect default branch
   const repoInfo = await fetch(`https://api.github.com/repos/${repo}`, {
     headers: commonHeaders,
   });
   if (!repoInfo.ok) throw new Error(`Failed to fetch repo info: ${repoInfo.status}`);
   const { default_branch } = (await repoInfo.json()) as { default_branch: string };
 
-  // 2. Get latest commit SHA of default branch
-  const refInfo = await fetch(`https://api.github.com/repos/${repo}/git/refs/heads/${default_branch}`, {
-    headers: commonHeaders,
-  });
+  // Get latest commit SHA of default branch
+  const refInfo = await fetch(
+    `https://api.github.com/repos/${repo}/git/refs/heads/${default_branch}`,
+    {
+      headers: commonHeaders,
+    },
+  );
   if (!refInfo.ok) throw new Error(`Failed to fetch branch ref: ${refInfo.status}`);
   const { object } = (await refInfo.json()) as { object: { sha: string } };
   const baseCommitSha = object.sha;
 
-  // 3. Get the tree SHA from the base commit
-  const commitInfo = await fetch(`https://api.github.com/repos/${repo}/git/commits/${baseCommitSha}`, {
-    headers: commonHeaders,
-  });
+  // Get the tree SHA from the base commit
+  const commitInfo = await fetch(
+    `https://api.github.com/repos/${repo}/git/commits/${baseCommitSha}`,
+    {
+      headers: commonHeaders,
+    },
+  );
   if (!commitInfo.ok) throw new Error(`Failed to fetch base commit: ${commitInfo.status}`);
   const { tree } = (await commitInfo.json()) as { tree: { sha: string } };
   const baseTreeSha = tree.sha;
 
-  // 4. Create blobs for new/updated files in parallel
-  const treeItems: GitTreeItem[] = await Promise.all(
-    filesToUpdate.map(async (file) => {
-      const blobResponse = await fetch(`https://api.github.com/repos/${repo}/git/blobs`, {
-        method: "POST",
-        headers: commonHeaders,
-        body: JSON.stringify({
-          content: toBase64(file.content),
-          encoding: "base64",
-        }),
-      });
-      if (!blobResponse.ok) throw new Error(`Failed to create blob for ${file.path}`);
-      const { sha } = (await blobResponse.json()) as { sha: string };
-      return {
-        path: file.path,
-        mode: "100644",
-        type: "blob",
-        sha,
-      };
-    }),
-  );
+  // Create blobs for new/updated files in parallel (chunked)
+  const treeItems: GitTreeItem[] = await processInChunks(filesToUpdate, 10, async (file) => {
+    const blobResponse = await fetch(`https://api.github.com/repos/${repo}/git/blobs`, {
+      method: "POST",
+      headers: commonHeaders,
+      body: JSON.stringify({
+        content: toBase64(file.content),
+        encoding: "base64",
+      }),
+    });
+    if (!blobResponse.ok) throw new Error(`Failed to create blob for ${file.path}`);
+    const { sha } = (await blobResponse.json()) as { sha: string };
+    return {
+      path: file.path,
+      mode: "100644",
+      type: "blob",
+      sha,
+    };
+  });
 
-  // 5. Add deletions to the tree items
+  // Add deletions to the tree items
   // Setting sha: null in the tree API removes the file
   for (const path of filesToDelete) {
     treeItems.push({
@@ -229,7 +246,7 @@ export async function commitChangesToGitHub(
 
   if (treeItems.length === 0) return 0;
 
-  // 6. Create a new tree
+  // Create a new tree
   const newTreeResponse = await fetch(`https://api.github.com/repos/${repo}/git/trees`, {
     method: "POST",
     headers: commonHeaders,
@@ -238,7 +255,8 @@ export async function commitChangesToGitHub(
       tree: treeItems,
     }),
   });
-  if (!newTreeResponse.ok) throw new Error(`Failed to create new tree: ${await newTreeResponse.text()}`);
+  if (!newTreeResponse.ok)
+    throw new Error(`Failed to create new tree: ${await newTreeResponse.text()}`);
   const { sha: newTreeSha } = (await newTreeResponse.json()) as { sha: string };
 
   // 7. Create a commit
@@ -251,20 +269,24 @@ export async function commitChangesToGitHub(
       parents: [baseCommitSha],
     }),
   });
-  if (!newCommitResponse.ok) throw new Error(`Failed to create commit: ${await newCommitResponse.text()}`);
+  if (!newCommitResponse.ok)
+    throw new Error(`Failed to create commit: ${await newCommitResponse.text()}`);
   const { sha: newCommitSha } = (await newCommitResponse.json()) as { sha: string };
 
-  // 8. Update the branch reference
-  const updateRefResponse = await fetch(`https://api.github.com/repos/${repo}/git/refs/heads/${default_branch}`, {
-    method: "PATCH",
-    headers: commonHeaders,
-    body: JSON.stringify({
-      sha: newCommitSha,
-      force: false,
-    }),
-  });
-  if (!updateRefResponse.ok) throw new Error(`Failed to update ref: ${await updateRefResponse.text()}`);
+  // Update the branch reference
+  const updateRefResponse = await fetch(
+    `https://api.github.com/repos/${repo}/git/refs/heads/${default_branch}`,
+    {
+      method: "PATCH",
+      headers: commonHeaders,
+      body: JSON.stringify({
+        sha: newCommitSha,
+        force: false,
+      }),
+    },
+  );
+  if (!updateRefResponse.ok)
+    throw new Error(`Failed to update ref: ${await updateRefResponse.text()}`);
 
   return treeItems.length;
 }
-
