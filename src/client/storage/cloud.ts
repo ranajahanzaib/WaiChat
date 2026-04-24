@@ -1,4 +1,4 @@
-import type { StorageAdapter, Conversation, Message, DeleteMessageResult } from "./index";
+import type { Conversation, DeleteMessageResult, Message, StorageAdapter } from "./index";
 
 export class CloudStorage implements StorageAdapter {
   async getConversations(): Promise<Conversation[]> {
@@ -32,7 +32,7 @@ export class CloudStorage implements StorageAdapter {
   }
 
   async saveMessage(msg: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message> {
-    // Messages are saved server-side during /api/chat — nothing to do here
+    // Messages are saved server-side during /api/chat - nothing to do here
     return {
       ...msg,
       id: msg.id || crypto.randomUUID(),
@@ -41,7 +41,7 @@ export class CloudStorage implements StorageAdapter {
   }
 
   async updateConversationTitle(id: string, title: string): Promise<void> {
-    // Title is updated server-side after first message — nothing to do here
+    // Title is updated server-side after first message - nothing to do here
   }
 
   async deleteMessage(conversationId: string, messageId: string): Promise<DeleteMessageResult> {
@@ -53,4 +53,3 @@ export class CloudStorage implements StorageAdapter {
     return { deletedIds: data.deletedIds, softDeletedIds: data.softDeletedIds };
   }
 }
-

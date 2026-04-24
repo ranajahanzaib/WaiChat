@@ -1,8 +1,16 @@
+import type { UpdateChannel } from "./manifest";
+// Core Chat Types
+
 export interface Env {
   AI: Ai;
   DB: D1Database;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CLOUDFLARE_API_TOKEN?: string;
+
+  // Auto-update bindings
+  UPDATE_QUEUE: Queue<UpdateQueueMessage>;
+  GITHUB_TOKEN: string;
+  GITHUB_REPO: string; // "owner/repo"
 }
 
 export interface Conversation {
@@ -33,4 +41,14 @@ export interface ChatRequest {
   parent_id?: string;
   user_message_id?: string;
   assistant_message_id?: string;
+}
+
+// Auto-Update Types
+
+export interface UpdateQueueMessage {
+  type: "update";
+  fromVersion: string;
+  toVersion: string;
+  channel: UpdateChannel;
+  triggeredAt: string;
 }

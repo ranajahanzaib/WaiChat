@@ -1,7 +1,7 @@
 {
   "name": "waichat",
-  "version": "0.1.0",
-  "description": "Your own AI chat app, deployed in one click on Cloudflare's free tier.",
+  "version": "v0.1.4-alpha",
+  "description": "Free, open-source AI chat that runs entirely on Cloudflare's free tier. 1-click deploy. Free to run, yours to own.",
   "main": "src/worker/index.ts",
   "scripts": {
     "dev:client": "vite --config vite.config.ts",

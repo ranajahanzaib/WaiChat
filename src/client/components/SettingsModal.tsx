@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Model } from "../hooks/useModels";
 import type { StorageMode } from "../storage";
 import ModelPicker from "./ModelPicker";
+import UpdateStatus from "./UpdateStatus";
 
 interface SettingsModalProps {
   open: boolean;
@@ -36,7 +37,7 @@ export default function SettingsModal({
 }: SettingsModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  // Local draft state — only committed on Save
+  // Local draft state - only committed on Save
   const [draftStorageMode, setDraftStorageMode] = useState<StorageMode>(storageMode);
   const [draftModel, setDraftModel] = useState(defaultModel);
   const [draftSystemPrompt, setDraftSystemPrompt] = useState(systemPrompt);
@@ -255,6 +256,14 @@ export default function SettingsModal({
                 </button>
               </div>
             </div>
+          </section>
+
+          {/* Maintenance - App Updates */}
+          <section>
+            <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
+              Maintenance
+            </h3>
+            <UpdateStatus />
           </section>
         </div>
 

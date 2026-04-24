@@ -36,3 +36,27 @@ binding = "DB"
 database_name = "waichat-db"
 database_id = ""
 migrations_dir = "migrations"
+
+# Auto-Update System
+# Set GITHUB_TOKEN secret via: wrangler secret put GITHUB_TOKEN
+# Set GITHUB_REPO to "owner/repo" format for the user's deployed repo.
+
+[vars]
+GITHUB_REPO = ""
+
+# Queue producer: sends update jobs from cron/manual check
+[[queues.producers]]
+queue = "waichat-update-queue"
+binding = "UPDATE_QUEUE"
+
+# Queue consumer: processes update jobs (fetch files, verify, commit)
+[[queues.consumers]]
+queue = "waichat-update-queue"
+max_batch_size = 1
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "waichat-update-dlq"
+
+# Cron trigger: daily update check at 2:00 AM UTC
+[triggers]
+crons = ["0 2 * * *"]
