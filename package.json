@@ -1,6 +1,6 @@
 {
   "name": "waichat",
-  "version": "0.1.0",
+  "version": "v0.1.3-alpha",
   "description": "Your own AI chat app, deployed in one click on Cloudflare's free tier.",
   "main": "src/worker/index.ts",
   "scripts": {
