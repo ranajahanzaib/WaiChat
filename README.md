@@ -17,9 +17,9 @@ Free, open-source AI chat that runs entirely on Cloudflare's free tier. 1-click 
 >
 > _**WaiChat is short for Workers AI Chat**_
 
-<img width="1572" height="1210" alt="Screenshot 2026-04-22 at 2 02 50 PM" src="https://github.com/user-attachments/assets/5de4f94c-12d6-4b4b-b15f-21d409ed61c6" />
+<img width="1572" height="1210" alt="WaiChat Screenshot A" src="https://github.com/user-attachments/assets/5de4f94c-12d6-4b4b-b15f-21d409ed61c6" />
 
-<img width="1573" height="1201" alt="image" src="https://github.com/user-attachments/assets/17a5868d-2844-4f34-8532-779f09eca4f6" />
+<img width="1573" height="1201" alt="WaiChat Screenshot B" src="https://github.com/user-attachments/assets/17a5868d-2844-4f34-8532-779f09eca4f6" />
 
 https://github.com/user-attachments/assets/e62c3a84-aa5d-4d24-be3f-f162115db89a
 
@@ -33,15 +33,44 @@ https://github.com/user-attachments/assets/e62c3a84-aa5d-4d24-be3f-f162115db89a
 - **Chat management** - collapsible sidebar, auto-generated titles, one-click copy actions, and deep-linked URLs
 - **Auth-ready** - works out of the box with [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) for zero-trust private deployments
 
-
 ## Deploy
 
-### One-click
-The easiest way to self-host WaiChat is via the Deploy to Cloudflare button below.
+### Recommended: Fork → Deploy to Cloudflare
+
+The best way to self-host WaiChat. Takes about 1 minute, no CLI required, and you get automatic deployments whenever you sync your fork with upstream updates.
+
+**1. Fork this repository**
+
+Click **Fork** at the top of this page. Keep the default settings and confirm.
+
+**2. Connect your fork to Cloudflare**
+
+[**Open Cloudflare Workers & Pages →**](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create)
+
+Select your account if prompted, then **Continue with GitHub** → select your forked repository → **Next** → **Deploy**.
+
+Cloudflare will build and deploy your app automatically. Your app will be live at `https://waichat.<your-subdomain>.workers.dev`.
+
+**3. Updating**
+
+To get the latest WaiChat features and fixes, sync your fork from GitHub:
+
+- Go to your fork on GitHub
+- Click **Sync fork** → **Update branch**
+
+Cloudflare detects the push and redeploys automatically within seconds. No manual steps required.
+
+---
+
+### Quick Start: One-Click Deploy
+
+> **Note:** This option gets you running instantly, but your deployment won't receive future updates automatically. Use the Fork method above for long-term self-hosting.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ranajahanzaib/WaiChat/tree/v0.1.3-alpha)
 
-Click the button and Cloudflare handles everything automatically - no CLI, no config files to edit, no manual steps required. Behind the scenes it forks the repo into your GitHub account, provisions a D1 database and Workers AI binding, then builds and deploys the app to `https://waichat.<your-subdomain>.workers.dev`.
+Cloudflare handles everything - provisions a D1 database and Workers AI binding, builds, and deploys to `https://waichat.<your-subdomain>.workers.dev`.
+
+---
 
 ### Manual (CLI)
 
@@ -64,7 +93,6 @@ pnpm db:migrate:remote
 pnpm deploy:production
 ```
 
-
 ---
 
 ## Auth (Optional)
@@ -77,9 +105,9 @@ See [docs/self-hosting.md](./docs/self-hosting.md) for a step-by-step setup guid
 
 ## Storage
 
-| Mode | How it works |
-|---|---|
-| **Cloud** | Chat history stored in Cloudflare D1 (SQLite). Default. |
+| Mode      | How it works                                                                    |
+| --------- | ------------------------------------------------------------------------------- |
+| **Cloud** | Chat history stored in Cloudflare D1 (SQLite). Default.                         |
 | **Local** | Chat history stored in your browser's localStorage. No data leaves your device. |
 
 Toggle between modes in the app settings.
@@ -100,12 +128,12 @@ Toggle between modes in the app settings.
 
 Everything WaiChat uses fits within Cloudflare's free tier:
 
-| Service | Free allowance |
-|---|---|
-| Workers AI | 10,000 neurons/day |
-| Workers | 100,000 requests/day |
-| D1 | 5M reads · 100K writes/day · 5GB storage |
-| Pages/Workers hosting | Unlimited |
+| Service               | Free allowance                           |
+| --------------------- | ---------------------------------------- |
+| Workers AI            | 10,000 neurons/day                       |
+| Workers               | 100,000 requests/day                     |
+| D1                    | 5M reads · 100K writes/day · 5GB storage |
+| Pages/Workers hosting | Unlimited                                |
 
 For personal use, you'll never come close to these limits.
 
