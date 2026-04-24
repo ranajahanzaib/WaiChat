@@ -1,24 +1,49 @@
 # Self-Hosting Guide
 
-WaiChat deploys entirely on Cloudflare's free tier. This guide covers optional configuration for private deployments, including authentication via Cloudflare Access and live model fetching.
+WaiChat deploys entirely on Cloudflare's free tier. This guide covers deployment options and optional configuration for private deployments, including authentication via Cloudflare Access and live model fetching.
 
 ---
 
-## One-Click Deploy
+## Recommended: Fork → Deploy to Cloudflare
 
-The easiest way to self-host WaiChat is via the Deploy to Cloudflare button below.
+The best way to self-host WaiChat. Takes about a minute, no CLI required, and your deployment stays in sync with upstream updates.
+
+**1. Fork this repository**
+
+Click **Fork** at the top of this page. Keep the default settings and confirm.
+
+**2. Connect your fork to Cloudflare**
+
+[**Open Cloudflare Workers & Pages →**](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create)
+
+Select your account if prompted, then **Continue with GitHub** → select your forked repository → **Next** → **Deploy**.
+
+Your app will be live at `https://waichat.<your-subdomain>.workers.dev`.
+
+**3. Updating**
+
+To get the latest WaiChat features and fixes, sync your fork from GitHub:
+
+- Go to your fork on GitHub
+- Click **Sync fork** → **Update branch**
+
+Cloudflare detects the push and redeploys automatically within seconds.
+
+---
+
+## Quick Start: One-Click Deploy
+
+> **Note:** This option gets you running instantly, but your deployment won't receive future updates automatically. Use the Fork method above for long-term self-hosting.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ranajahanzaib/WaiChat/tree/v0.1.3-alpha)
 
-Click the button and Cloudflare handles everything automatically - no CLI, no config files to edit, no manual steps required. Behind the scenes it forks the repo into your GitHub account, provisions a D1 database and Workers AI binding, then builds and deploys the app to `https://waichat.<your-subdomain>.workers.dev`.
+Cloudflare handles everything - provisions a D1 database and Workers AI binding, builds, and deploys to `https://waichat.<your-subdomain>.workers.dev`.
 
 ---
 
 ## Manual Deploy (CLI)
 
-Requires a [Cloudflare account](https://dash.cloudflare.com/sign-up) and your `CLOUDFLARE_API_TOKEN` set as an environment variable.
-
-If you prefer to deploy manually:
+Requires a [Cloudflare account](https://dash.cloudflare.com/sign-up) and [Wrangler](https://developers.cloudflare.com/workers/wrangler/).
 
 ```bash
 git clone https://github.com/ranajahanzaib/waichat.git
@@ -33,18 +58,6 @@ cp wrangler.local.toml.example wrangler.local.toml
 pnpm db:migrate:remote   # apply D1 schema to remote database
 pnpm deploy:production   # build client and deploy worker
 ```
-
----
-
-## Lifecycle Management (Updates & Rollbacks)
-
-Once you have deployed WaiChat to your own GitHub repository using the One-Click Deploy button, you can manage your instance directly from your repository's Actions tab. WaiChat includes built-in workflows to make maintenance frictionless.
-
-To use these workflows, navigate to the Actions tab in your GitHub repository, select the desired workflow from the left sidebar, and click the "Run workflow" dropdown on the right.
-
-- **Update WaiChat:** Deploys the latest stable or pre-release version over your current instance. It safely aborts if there are merge conflicts.
-- **Rollback WaiChat:** If an update causes issues, run this workflow and enter a previous release tag (e.g., `v0.1.2-alpha`) to safely revert your code and redeploy.
-- **Dev: Test Upstream Branch:** To test a specific branch or feature before it is officially released, enter the branch name (e.g., `feat/ui-overhaul`) to deploy it directly to your existing instance.
 
 ---
 
