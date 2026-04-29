@@ -8,7 +8,7 @@
     "dev:worker": "wrangler dev -c wrangler.local.jsonc",
     "build:assets": "vite build --config vite.config.ts && touch dist/.gitkeep",
     "build": "pnpm build:assets && npx wrangler deploy && pnpm db:migrate:binding",
-    "deploy:production": "pnpm build:assets && wrangler deploy -c wrangler.local.jsonc",
+    "deploy:production": "pnpm build:assets && pnpm db:migrate:remote && wrangler deploy -c wrangler.local.jsonc",
     "db:migrate:local": "wrangler d1 migrations apply waichat-db --local -c wrangler.local.jsonc",
     "db:migrate:remote": "wrangler d1 migrations apply waichat-db --remote -c wrangler.local.jsonc",
     "db:migrate:binding": "npx wrangler d1 migrations apply DB --remote",
