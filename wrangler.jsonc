@@ -1,0 +1,36 @@
+{
+  "name": "waichat",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2025-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Built React app served as static assets
+  "assets": {
+    "directory": "./dist",
+    // Enables SPA routing (serves index.html for unknown routes like /c/cloud/123)
+    "not_found_handling": "single-page-application"
+  },
+
+  // --- ROUTING ESCAPE HATCH ---
+  // Currently, Cloudflare smartly routes fetch() calls to the Hono backend without explicit config.
+  // If /api/ requests start returning index.html, uncomment:
+  // "run_worker_first": ["/api/*"],
+
+  // Workers AI binding
+  "ai": {
+    "binding": "AI"
+  },
+
+  // D1 Database
+  // Note: database_id is replaced automatically when deploying via the Deploy to Cloudflare button.
+  // For Fork + Connect GitHub deploys, wrangler deploy auto-provisions the DB and writes the
+  // database_id back to this file on disk during the build step, before migrations run.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "waichat-db",
+      "database_id": "",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
