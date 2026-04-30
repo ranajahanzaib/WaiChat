@@ -52,8 +52,8 @@ pnpm install
 
 # Create a database and configure your local wrangler file
 npx wrangler d1 create waichat-db
-cp wrangler.local.toml.example wrangler.local.toml
-# Important: Add the generated database_id to your wrangler.local.toml
+cp wrangler.local.jsonc.example wrangler.local.jsonc
+# Important: Add the generated database_id to your wrangler.local.jsonc
 
 pnpm db:migrate:remote   # apply D1 schema to remote database
 pnpm deploy:production   # build client and deploy worker
@@ -138,8 +138,8 @@ All other configuration (D1 binding, Workers AI binding) is handled automaticall
 pnpm install
 
 # Configure your local wrangler file first
-cp wrangler.local.toml.example wrangler.local.toml
-# Ensure you have a database_id set in wrangler.local.toml
+cp wrangler.local.jsonc.example wrangler.local.jsonc
+# Ensure you have a database_id set in wrangler.local.jsonc
 
 pnpm db:migrate:local    # apply D1 schema locally
 pnpm dev:worker          # start Worker on localhost:8787

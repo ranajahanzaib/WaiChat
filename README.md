@@ -85,8 +85,8 @@ pnpm install
 npx wrangler d1 create waichat-db
 
 # 2. Set up your local wrangler config
-cp wrangler.local.toml.example wrangler.local.toml
-# Open wrangler.local.toml and paste your new database_id inside
+cp wrangler.local.jsonc.example wrangler.local.jsonc
+# Open wrangler.local.jsonc and paste your new database_id inside
 
 # 3. Migrate and deploy
 pnpm db:migrate:remote
