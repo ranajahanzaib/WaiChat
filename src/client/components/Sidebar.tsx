@@ -41,6 +41,7 @@ export default function Sidebar({
   const targetMode: StorageMode = currentMode === "cloud" ? "local" : "cloud";
 
   const handleTouchStart = (cId: string) => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTimer.current = setTimeout(() => {
       setOpenMenuId(cId);
       longPressTimer.current = null;
@@ -78,6 +79,7 @@ export default function Sidebar({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
   }, [openMenuId]);
 
@@ -190,6 +192,8 @@ export default function Sidebar({
                             : "text-gray-400 hover:text-gray-900 dark:text-white/40 dark:hover:text-white/95 opacity-0 group-hover:opacity-100"
                       }`}
                       aria-label="Conversation actions"
+                      aria-haspopup="menu"
+                      aria-expanded={openMenuId === c.id}
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -204,7 +208,10 @@ export default function Sidebar({
                     </button>
 
                     {openMenuId === c.id && (
-                      <div className="absolute right-0 mt-1 w-44 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl">
+                      <div
+                        role="menu"
+                        className="absolute right-0 mt-1 w-44 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl"
+                      >
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -213,6 +220,7 @@ export default function Sidebar({
                           }}
                           disabled={isMoveDisabled}
                           className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          role="menuitem"
                         >
                           {isMoving ? (
                             <svg
@@ -260,6 +268,7 @@ export default function Sidebar({
                             setPendingDelete(c);
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                          role="menuitem"
                         >
                           <svg
                             viewBox="0 0 24 24"
