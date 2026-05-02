@@ -5,6 +5,7 @@ interface ConfirmModalProps {
   title: string;
   description: string;
   confirmLabel?: string;
+  variant?: "destructive" | "neutral";
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -13,7 +14,8 @@ export default function ConfirmModal({
   open,
   title,
   description,
-  confirmLabel = "Delete",
+  confirmLabel = "Confirm",
+  variant = "destructive",
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -64,7 +66,11 @@ export default function ConfirmModal({
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+            className={`flex-1 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+              variant === "destructive"
+                ? "bg-red-500 hover:bg-red-600"
+                : "bg-[#0A84FF] hover:bg-[#0070E0]"
+            }`}
           >
             {confirmLabel}
           </button>

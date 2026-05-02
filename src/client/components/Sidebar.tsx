@@ -10,9 +10,12 @@ interface SidebarProps {
   onSelect: (id: string) => void;
   onNew: (mode?: StorageMode) => void;
   onDelete: (id: string) => void;
+  onMove: (id: string) => void;
   onSettingsOpen: () => void;
   currentMode: StorageMode;
   savedMode: StorageMode;
+  isStreaming: boolean;
+  movingConversationId: string | null;
 }
 
 export default function Sidebar({
@@ -23,11 +26,16 @@ export default function Sidebar({
   onSelect,
   onNew,
   onDelete,
+  onMove,
   onSettingsOpen,
   currentMode,
   savedMode, // Kept in props to satisfy the interface and App.tsx
+  isStreaming,
+  movingConversationId,
 }: SidebarProps) {
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
+  const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
+  const targetMode: StorageMode = currentMode === "cloud" ? "local" : "cloud";
 
   return (
     <>
@@ -96,7 +104,11 @@ export default function Sidebar({
               No conversations yet
             </p>
           )}
-          {conversations.map((c) => (
+          {conversations.map((c) => {
+            const isMoving = movingConversationId === c.id;
+            const isMoveDisabled = isMoving || (activeId === c.id && isStreaming);
+
+            return (
             <div
               key={c.id}
               className={`group flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer text-[13px] md:text-sm transition-all duration-150 ${
@@ -109,31 +121,65 @@ export default function Sidebar({
               onClick={() => onSelect(c.id)}
             >
               <span className="truncate">{c.title}</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPendingDelete(c);
-                }}
-                className={`p-1.5 rounded-md focus:outline-none transition-all ml-2 shrink-0 ${
-                  activeId === c.id
-                    ? currentMode === "cloud"
-                      ? "text-white/70 hover:text-white opacity-100"
-                      : "text-gray-900/60 hover:text-gray-900 opacity-100"
-                    : "text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 opacity-0 group-hover:opacity-100"
-                }`}
-                aria-label="Delete conversation"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  ></path>
-                </svg>
-              </button>
+              <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                {/* Move button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isMoveDisabled) setPendingMove(c);
+                  }}
+                  disabled={isMoveDisabled}
+                  className={`p-1.5 rounded-md focus:outline-none transition-all ${
+                    isMoveDisabled
+                      ? "opacity-30 cursor-not-allowed"
+                      : activeId === c.id
+                        ? currentMode === "cloud"
+                          ? "text-white/70 hover:text-white opacity-100"
+                          : "text-gray-900/60 hover:text-gray-900 opacity-100"
+                        : "text-gray-400 hover:text-brand-cloud dark:text-white/40 dark:hover:text-brand-cloud opacity-0 group-hover:opacity-100"
+                  }`}
+                  aria-label={`Move to ${targetMode}`}
+                  title={isMoveDisabled && isStreaming ? "Stop generation before moving" : `Move to ${targetMode}`}
+                >
+                  {isMoving ? (
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 17L17 7M17 7H8M17 7v9" />
+                    </svg>
+                  )}
+                </button>
+                {/* Delete button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPendingDelete(c);
+                  }}
+                  className={`p-1.5 rounded-md focus:outline-none transition-all ${
+                    activeId === c.id
+                      ? currentMode === "cloud"
+                        ? "text-white/70 hover:text-white opacity-100"
+                        : "text-gray-900/60 hover:text-gray-900 opacity-100"
+                      : "text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 opacity-0 group-hover:opacity-100"
+                  }`}
+                  aria-label="Delete conversation"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="p-4 border-t-[0.5px] border-black/10 dark:border-white/10 flex items-center gap-3">
@@ -171,11 +217,29 @@ export default function Sidebar({
         title="Delete conversation?"
         description={pendingDelete ? `"${pendingDelete.title}" will be permanently deleted.` : ""}
         confirmLabel="Delete"
+        variant="destructive"
         onConfirm={() => {
           if (pendingDelete) onDelete(pendingDelete.id);
           setPendingDelete(null);
         }}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <ConfirmModal
+        open={pendingMove !== null}
+        title={`Move to ${targetMode === "cloud" ? "Cloud" : "Local"}?`}
+        description={
+          pendingMove
+            ? `"${pendingMove.title}" will be moved to ${targetMode === "cloud" ? "Cloud (D1)" : "Local (Browser)"} storage and removed from ${currentMode === "cloud" ? "Cloud" : "Local"}.`
+            : ""
+        }
+        confirmLabel="Move"
+        variant="neutral"
+        onConfirm={() => {
+          if (pendingMove) onMove(pendingMove.id);
+          setPendingMove(null);
+        }}
+        onCancel={() => setPendingMove(null)}
       />
     </>
   );

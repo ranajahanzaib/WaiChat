@@ -157,4 +157,10 @@ export class LocalStorage implements StorageAdapter {
 
     return { deletedIds, softDeletedIds };
   }
+
+  async exportConversation(
+    id: string,
+  ): Promise<{ conversation: Conversation; messages: Message[] } | null> {
+    return this.getConversation(id);
+  }
 }

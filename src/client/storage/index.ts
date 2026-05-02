@@ -4,6 +4,7 @@ export interface Conversation {
   model: string;
   created_at: number;
   updated_at: number;
+  import_complete?: number | null;
 }
 
 export interface Message {
@@ -30,6 +31,7 @@ export interface StorageAdapter {
   saveMessage(message: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message>;
   updateConversationTitle(id: string, title: string): Promise<void>;
   deleteMessage(conversationId: string, messageId: string): Promise<DeleteMessageResult>;
+  exportConversation(id: string): Promise<{ conversation: Conversation; messages: Message[] } | null>;
 }
 
 export type StorageMode = "cloud" | "local";

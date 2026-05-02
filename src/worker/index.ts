@@ -9,6 +9,7 @@ import {
   getMessageById,
   getMessages,
   getSiblingCount,
+  importConversation,
   saveMessage,
   updateConversationTimestamp,
   updateConversationTitle,
@@ -166,6 +167,26 @@ app.get("/api/conversations/:id", async (c) => {
   if (!conversation) return c.json({ error: "Not found" }, 404);
   const messages = await getMessages(c.env.DB, conversation.id);
   return c.json({ conversation, messages });
+});
+
+// Import a full conversation + messages from local storage into D1
+app.post("/api/conversations/import", async (c) => {
+  try {
+    const { conversation, messages } = await c.req.json<{
+      conversation: { id: string; title: string; model: string; created_at: number; updated_at: number };
+      messages: { id: string; conversation_id: string; role: "user" | "assistant"; content: string; created_at: number; model?: string; parent_id?: string; deleted_at?: number }[];
+    }>();
+
+    if (!conversation?.id || !Array.isArray(messages)) {
+      return c.json({ success: false, error: "Invalid request body" }, 400);
+    }
+
+    await importConversation(c.env.DB, conversation, messages);
+    return c.json({ success: true, conversationId: conversation.id });
+  } catch (e) {
+    console.error("[POST /api/conversations/import] error:", e);
+    return c.json({ success: false, error: "Import failed" }, 500);
+  }
 });
 
 app.delete("/api/conversations", async (c) => {

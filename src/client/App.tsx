@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useChat } from "./hooks/useChat";
 import { useModels, DEFAULT_MODEL_ID } from "./hooks/useModels";
+import { useTransfer } from "./hooks/useTransfer";
 import type { StorageMode } from "./storage";
 import Sidebar from "./components/Sidebar";
 import MessageList from "./components/MessageList";
@@ -78,6 +79,8 @@ export default function App() {
     return savedStorageMode;
   });
 
+  const pendingSelectionRef = useRef<string | null>(null);
+
   const {
     conversations,
     activeConversation,
@@ -95,7 +98,15 @@ export default function App() {
     retryMessage,
     setActiveVersion,
     deleteMessage,
-  } = useChat(storageMode);
+  } = useChat(storageMode, pendingSelectionRef);
+
+  const {
+    transferState,
+    initiateMove,
+    executeMove,
+    cancelMove,
+    retryPendingCloudDeletes,
+  } = useTransfer();
 
   const { models } = useModels();
   const [model, setModel] = useState(
@@ -119,7 +130,8 @@ export default function App() {
 
   useEffect(() => {
     loadConversations();
-  }, [loadConversations]);
+    retryPendingCloudDeletes();
+  }, [loadConversations, retryPendingCloudDeletes]);
 
   // Sync System Prompt from Cloud if enabled
   useEffect(() => {
@@ -312,6 +324,32 @@ export default function App() {
     await loadConversations();
   };
 
+  const handleMoveConversation = async (conversationId: string) => {
+    const targetMode: StorageMode = storageMode === "cloud" ? "local" : "cloud";
+
+    try {
+      // Prefetch the source data
+      await initiateMove(conversationId, storageMode);
+
+      // Execute the move
+      const movedId = await executeMove(storageMode, targetMode);
+
+      // If the moved conversation was the active one, clear it
+      if (activeConversation?.id === conversationId) {
+        clearConversation();
+      }
+
+      // Set pending selection so useChat auto-selects after mode switch
+      pendingSelectionRef.current = movedId;
+
+      // Switch to target mode
+      handleStorageToggle(targetMode);
+    } catch (e) {
+      console.error("[handleMoveConversation] error:", e);
+      cancelMove();
+    }
+  };
+
   return (
     <div className="relative flex h-screen w-full overflow-hidden font-sans text-gray-900 dark:text-white/95">
       {/* Full-screen base layers */}
@@ -346,9 +384,12 @@ export default function App() {
           onSelect={handleSelectConversation}
           onNew={handleNew}
           onDelete={deleteConversation}
+          onMove={handleMoveConversation}
           onSettingsOpen={() => setSettingsOpen(true)}
           currentMode={storageMode}
           savedMode={savedStorageMode}
+          isStreaming={isStreaming}
+          movingConversationId={transferState.conversationId}
         />
 
         <main className="flex flex-col flex-1 min-w-0 h-full">

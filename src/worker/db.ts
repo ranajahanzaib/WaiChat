@@ -100,13 +100,101 @@ export async function softDeleteMessage(db: D1Database, id: string): Promise<voi
 }
 
 export async function getSetting(db: D1Database, key: string): Promise<string | null> {
-  const row = await db.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first<{ value: string }>();
+  const row = await db
+    .prepare("SELECT value FROM settings WHERE key = ?")
+    .bind(key)
+    .first<{ value: string }>();
   return row?.value ?? null;
 }
 
 export async function setSetting(db: D1Database, key: string, value: string): Promise<void> {
   await db
-    .prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+    .prepare(
+      "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+    )
     .bind(key, value, Date.now())
     .run();
+}
+
+export async function markImportComplete(db: D1Database, id: string): Promise<void> {
+  await db.prepare("UPDATE conversations SET import_complete = 1 WHERE id = ?").bind(id).run();
+}
+
+/**
+ * Bulk-import a conversation and its messages into D1.
+ * Uses chunked db.batch() calls (max 99 statements per batch).
+ * Idempotent: if the conversation already exists with import_complete=1, returns early.
+ * If it exists without import_complete, deletes the partial and re-imports.
+ */
+export async function importConversation(
+  db: D1Database,
+  conversation: Conversation,
+  messages: Message[],
+): Promise<void> {
+  // Idempotency check
+  const existing = await getConversation(db, conversation.id);
+  if (existing) {
+    if (existing.import_complete === 1) {
+      // Previous import completed successfully - idempotent success
+      return;
+    }
+    // Partial leftover from a failed import - clean up
+    await deleteConversation(db, conversation.id);
+  }
+
+  const BATCH_SIZE = 99;
+
+  // Build all message INSERT statements
+  const msgStatements = messages.map((m) =>
+    db
+      .prepare(
+        "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        m.id,
+        m.conversation_id,
+        m.role,
+        m.content,
+        m.created_at,
+        m.model || null,
+        m.parent_id || null,
+        m.deleted_at || null,
+      ),
+  );
+
+  // First batch: conversation INSERT + first chunk of messages
+  const convInsert = db
+    .prepare(
+      "INSERT INTO conversations (id, title, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(
+      conversation.id,
+      conversation.title,
+      conversation.model,
+      conversation.created_at,
+      conversation.updated_at,
+    );
+
+  const firstChunk = msgStatements.slice(0, BATCH_SIZE);
+  await db.batch([convInsert, ...firstChunk]);
+
+  // Remaining batches
+  try {
+    for (let i = BATCH_SIZE; i < msgStatements.length; i += BATCH_SIZE) {
+      const chunk = msgStatements.slice(i, i + BATCH_SIZE);
+      await db.batch(chunk);
+    }
+  } catch (e) {
+    // Rollback: delete conversation (cascades to messages via FK)
+    try {
+      await deleteConversation(db, conversation.id);
+    } catch {
+      // Rollback failed - next retry will hit the idempotency check
+      // and clean up the partial via the import_complete=null path
+    }
+    throw e;
+  }
+
+  // Mark import as complete
+  await markImportComplete(db, conversation.id);
 }

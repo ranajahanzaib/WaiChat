@@ -32,7 +32,10 @@ interface UseChatReturn {
   deleteMessage: (messageId: string) => Promise<void>;
 }
 
-export function useChat(storageMode: StorageMode): UseChatReturn {
+export function useChat(
+  storageMode: StorageMode,
+  pendingSelectionRef?: React.RefObject<string | null>,
+): UseChatReturn {
   const storage = useMemo(() => createStorage(storageMode), [storageMode]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
@@ -49,6 +52,33 @@ export function useChat(storageMode: StorageMode): UseChatReturn {
     setIsStreaming(false);
     setActiveVersions({});
   }, [storageMode]);
+
+  // After mode change: auto-select a conversation if pendingSelectionRef is set
+  const selectAfterModeChangeRef = useRef(false);
+  useEffect(() => {
+    selectAfterModeChangeRef.current = true;
+  }, [storageMode]);
+
+  useEffect(() => {
+    if (
+      selectAfterModeChangeRef.current &&
+      pendingSelectionRef?.current
+    ) {
+      const id = pendingSelectionRef.current;
+      pendingSelectionRef.current = null;
+      selectAfterModeChangeRef.current = false;
+      // Load conversations first, then select
+      storage.getConversations().then((data) => {
+        setConversations(data);
+        storage.getConversation(id).then((result) => {
+          if (result) {
+            setActiveConversation(result.conversation);
+            setMessages(result.messages);
+          }
+        });
+      });
+    }
+  });
 
   const loadConversations = useCallback(async () => {
     try {

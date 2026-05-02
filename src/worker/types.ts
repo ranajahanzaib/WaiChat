@@ -11,6 +11,7 @@ export interface Conversation {
   model: string;
   created_at: number;
   updated_at: number;
+  import_complete?: number | null;
 }
 
 export interface Message {
