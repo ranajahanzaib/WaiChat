@@ -28,6 +28,7 @@ export interface StorageAdapter {
   getConversation(id: string): Promise<{ conversation: Conversation; messages: Message[] } | null>;
   createConversation(model: string): Promise<Conversation>;
   deleteConversation(id: string): Promise<void>;
+  updateConversationModel(id: string, model: string): Promise<void>;
   saveMessage(message: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message>;
   updateConversationTitle(id: string, title: string): Promise<void>;
   deleteMessage(conversationId: string, messageId: string): Promise<DeleteMessageResult>;

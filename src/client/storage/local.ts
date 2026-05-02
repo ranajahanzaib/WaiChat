@@ -61,6 +61,13 @@ export class LocalStorage implements StorageAdapter {
     this.setConversations(conversations);
     localStorage.removeItem(MESSAGES_KEY(id));
   }
+  
+  async updateConversationModel(id: string, model: string): Promise<void> {
+    const conversations = this.getConversationsRaw().map((c) =>
+      c.id === id ? { ...c, model, updated_at: Date.now() } : c,
+    );
+    this.setConversations(conversations);
+  }
 
   async saveMessage(msg: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message> {
     const message: Message = {

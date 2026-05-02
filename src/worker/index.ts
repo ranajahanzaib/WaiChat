@@ -13,6 +13,7 @@ import {
   saveMessage,
   updateConversationTimestamp,
   updateConversationTitle,
+  updateConversationModel,
   getSetting,
   setSetting,
 } from "./db";
@@ -199,6 +200,20 @@ app.delete("/api/conversations/:id", async (c) => {
   return c.json({ success: true });
 });
 
+app.patch("/api/conversations/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{ model?: string; title?: string }>();
+
+  if (body.model) {
+    await updateConversationModel(c.env.DB, id, body.model);
+  }
+  if (body.title) {
+    await updateConversationTitle(c.env.DB, id, body.title);
+  }
+
+  return c.json({ success: true });
+});
+
 // Delete a single message (with cascade / soft-delete logic)
 app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) => {
   const { conversationId, messageId } = c.req.param();
@@ -290,14 +305,20 @@ app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) =
 });
 
 // Settings
-const ALLOWED_SETTING_KEYS = ["system_prompt"];
+const ALLOWED_SETTING_KEYS = ["system_prompt", "default_model"];
 
 app.get("/api/settings/:key", async (c) => {
   const key = c.req.param("key");
   if (!ALLOWED_SETTING_KEYS.includes(key)) {
     return c.json({ error: "Invalid setting key" }, 400);
   }
-  const value = await getSetting(c.env.DB, key);
+  let value = await getSetting(c.env.DB, key);
+
+  // Migration: If default_model is missing, try legacy "model" key
+  if (key === "default_model" && value === null) {
+    value = await getSetting(c.env.DB, "model");
+  }
+
   return c.json({ value });
 });
 

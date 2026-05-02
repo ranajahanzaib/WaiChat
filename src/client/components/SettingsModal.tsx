@@ -169,6 +169,9 @@ export default function SettingsModal({
                     className="w-full"
                   />
                 </div>
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-white/40">
+                  Fallback for existing chats and default for new ones.
+                </p>
               </div>
               {/* System prompt */}
               <div>

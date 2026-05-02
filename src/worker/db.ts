@@ -40,6 +40,17 @@ export async function updateConversationTitle(
     .run();
 }
 
+export async function updateConversationModel(
+  db: D1Database,
+  id: string,
+  model: string,
+): Promise<void> {
+  await db
+    .prepare("UPDATE conversations SET model = ?, updated_at = ? WHERE id = ?")
+    .bind(model, Date.now(), id)
+    .run();
+}
+
 export async function updateConversationTimestamp(db: D1Database, id: string): Promise<void> {
   await db
     .prepare("UPDATE conversations SET updated_at = ? WHERE id = ?")

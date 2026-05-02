@@ -30,6 +30,15 @@ export class CloudStorage implements StorageAdapter {
     const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete conversation");
   }
+  
+  async updateConversationModel(id: string, model: string): Promise<void> {
+    const res = await fetch(`/api/conversations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    });
+    if (!res.ok) throw new Error("Failed to update conversation model");
+  }
 
   async saveMessage(msg: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message> {
     // Messages are saved server-side during /api/chat — nothing to do here
