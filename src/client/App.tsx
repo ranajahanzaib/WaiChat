@@ -11,7 +11,7 @@ import SettingsModal from "./components/SettingsModal";
 
 const STORAGE_MODE_KEY = "waichat:storage-mode";
 const SYSTEM_PROMPT_KEY = "waichat:system-prompt";
-const SYNC_PROMPT_KEY = "waichat:sync-system-prompt";
+const SYNC_SETTINGS_KEY = "waichat:sync-settings";
 const DEFAULT_MODEL_KEY = "waichat:default-model";
 export const THEME_KEY = "waichat:theme";
 const MOBILE_BREAKPOINT = 768;
@@ -116,8 +116,8 @@ export default function App() {
   const [systemPrompt, setSystemPrompt] = useState(
     () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
   );
-  const [syncSystemPrompt, setSyncSystemPrompt] = useState(
-    () => localStorage.getItem(SYNC_PROMPT_KEY) === "true",
+  const [syncSettings, setSyncSettings] = useState(
+    () => localStorage.getItem(SYNC_SETTINGS_KEY) === "true",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -136,7 +136,7 @@ export default function App() {
 
   // Sync System Prompt from Cloud if enabled
   useEffect(() => {
-    if (syncSystemPrompt) {
+    if (syncSettings) {
       fetch("/api/settings/system_prompt")
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch system prompt");
@@ -150,11 +150,11 @@ export default function App() {
         })
         .catch((err) => console.error("Cloud sync error (system_prompt):", err));
     }
-  }, [syncSystemPrompt]);
+  }, [syncSettings]);
 
   // Sync Default Model from Cloud if enabled
   useEffect(() => {
-    if (syncSystemPrompt) {
+    if (syncSettings) {
       fetch("/api/settings/default_model")
         .then((res) => {
           if (!res.ok) throw new Error("Failed to fetch default model");
@@ -168,7 +168,7 @@ export default function App() {
         })
         .catch((err) => console.error("Cloud sync error (default_model):", err));
     }
-  }, [syncSystemPrompt]);
+  }, [syncSettings]);
 
   const initialLoadDone = useRef(false);
 
@@ -311,7 +311,7 @@ export default function App() {
     setDefaultModel(m);
     localStorage.setItem(DEFAULT_MODEL_KEY, m);
 
-    if (syncSystemPrompt) {
+    if (syncSettings) {
       try {
         await fetch("/api/settings/default_model", {
           method: "POST",
@@ -336,8 +336,8 @@ export default function App() {
     setSystemPrompt(prompt);
     localStorage.setItem(SYSTEM_PROMPT_KEY, prompt);
 
-    setSyncSystemPrompt(sync);
-    localStorage.setItem(SYNC_PROMPT_KEY, String(sync));
+    setSyncSettings(sync);
+    localStorage.setItem(SYNC_SETTINGS_KEY, String(sync));
 
     if (sync) {
       try {
@@ -587,7 +587,7 @@ export default function App() {
           defaultModel={defaultModel}
           onDefaultModelChange={handleDefaultModelChange}
           systemPrompt={systemPrompt}
-          syncSystemPrompt={syncSystemPrompt}
+          syncSettings={syncSettings}
           onSystemPromptChange={handleSystemPromptChange}
           models={models}
           onClearConversations={handleClearConversations}

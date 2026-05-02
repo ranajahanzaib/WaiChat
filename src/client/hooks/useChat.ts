@@ -130,11 +130,19 @@ export function useChat(
   const updateActiveModel = useCallback(
     async (model: string) => {
       if (!activeConversation) return;
-      await storage.updateConversationModel(activeConversation.id, model);
-      setActiveConversation((prev) => (prev ? { ...prev, model } : null));
-      setConversations((prev) =>
-        prev.map((c) => (c.id === activeConversation.id ? { ...c, model } : c)),
-      );
+      try {
+        await storage.updateConversationModel(activeConversation.id, model);
+        const now = Date.now();
+        setActiveConversation((prev) => (prev ? { ...prev, model, updated_at: now } : null));
+        setConversations((prev) =>
+          prev
+            .map((c) => (c.id === activeConversation.id ? { ...c, model, updated_at: now } : c))
+            .sort((a, b) => b.updated_at - a.updated_at),
+        );
+      } catch (err) {
+        console.error("Failed to update active model:", err);
+        setError("Failed to update conversation model");
+      }
     },
     [storage, activeConversation],
   );

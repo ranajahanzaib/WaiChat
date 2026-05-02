@@ -11,7 +11,7 @@ interface SettingsModalProps {
   defaultModel: string;
   onDefaultModelChange: (model: string) => void;
   systemPrompt: string;
-  syncSystemPrompt: boolean;
+  syncSettings: boolean;
   onSystemPromptChange: (prompt: string, sync: boolean) => void;
   models: Model[];
   onClearConversations: (mode: StorageMode) => void;
@@ -27,7 +27,7 @@ export default function SettingsModal({
   defaultModel,
   onDefaultModelChange,
   systemPrompt,
-  syncSystemPrompt,
+  syncSettings,
   onSystemPromptChange,
   models,
   onClearConversations,
@@ -40,7 +40,7 @@ export default function SettingsModal({
   const [draftStorageMode, setDraftStorageMode] = useState<StorageMode>(storageMode);
   const [draftModel, setDraftModel] = useState(defaultModel);
   const [draftSystemPrompt, setDraftSystemPrompt] = useState(systemPrompt);
-  const [draftSyncSystemPrompt, setDraftSyncSystemPrompt] = useState(syncSystemPrompt);
+  const [draftSyncSettings, setDraftSyncSettings] = useState(syncSettings);
 
   // Sync draft with props when modal opens
   useEffect(() => {
@@ -48,9 +48,9 @@ export default function SettingsModal({
       setDraftStorageMode(storageMode);
       setDraftModel(defaultModel);
       setDraftSystemPrompt(systemPrompt);
-      setDraftSyncSystemPrompt(syncSystemPrompt);
+      setDraftSyncSettings(syncSettings);
     }
-  }, [open, storageMode, defaultModel, systemPrompt, syncSystemPrompt]);
+  }, [open, storageMode, defaultModel, systemPrompt, syncSettings]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -65,7 +65,7 @@ export default function SettingsModal({
   const handleSave = () => {
     onStorageModeChange(draftStorageMode);
     onDefaultModelChange(draftModel);
-    onSystemPromptChange(draftSystemPrompt, draftSyncSystemPrompt);
+    onSystemPromptChange(draftSystemPrompt, draftSyncSettings);
     onClose();
   };
 
@@ -102,9 +102,25 @@ export default function SettingsModal({
         <div className="overflow-y-auto flex-1 px-6 py-6 space-y-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/10 dark:[&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full">
           {/* Preferences */}
           <section>
-            <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40 mb-4">
-              Preferences
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[11px] md:text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-white/40">
+                Preferences
+              </h3>
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <div className="relative flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={draftSyncSettings}
+                    onChange={(e) => setDraftSyncSettings(e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <div className="w-8 h-4 bg-black/10 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#0A84FF]"></div>
+                </div>
+                <span className="text-[11px] md:text-xs font-medium text-gray-500 dark:text-white/40 group-hover:text-gray-900 dark:group-hover:text-white/80 transition-colors">
+                  Sync Settings to Cloud
+                </span>
+              </label>
+            </div>
             <div className="space-y-5">
               {/* Theme Segmented Control */}
               <div>
@@ -178,20 +194,6 @@ export default function SettingsModal({
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-[13px] md:text-sm font-medium text-gray-700 dark:text-white/80">
                     System Prompt
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked={draftSyncSystemPrompt}
-                        onChange={(e) => setDraftSyncSystemPrompt(e.target.checked)}
-                        className="peer sr-only"
-                      />
-                      <div className="w-8 h-4 bg-black/10 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#0A84FF]"></div>
-                    </div>
-                    <span className="text-[11px] md:text-xs font-medium text-gray-500 dark:text-white/40 group-hover:text-gray-900 dark:group-hover:text-white/80 transition-colors">
-                      Sync to Cloud
-                    </span>
                   </label>
                 </div>
                 <textarea
