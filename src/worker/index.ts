@@ -210,11 +210,26 @@ app.patch("/api/conversations/:id", async (c) => {
     return c.json({ error: "Conversation not found" }, 404);
   }
 
+  const updates: string[] = [];
+  const params: any[] = [];
+
   if (body.model) {
-    await updateConversationModel(db, id, body.model);
+    updates.push("model = ?");
+    params.push(body.model);
   }
   if (body.title) {
-    await updateConversationTitle(db, id, body.title);
+    updates.push("title = ?");
+    params.push(body.title);
+  }
+
+  if (updates.length > 0) {
+    updates.push("updated_at = ?");
+    params.push(Date.now());
+    params.push(id);
+    await db
+      .prepare(`UPDATE conversations SET ${updates.join(", ")} WHERE id = ?`)
+      .bind(...params)
+      .run();
   }
 
   return c.json({ success: true });
