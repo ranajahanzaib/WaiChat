@@ -99,18 +99,23 @@ export class LocalStorage implements StorageAdapter {
     const msg = messages.find((m) => m.id === messageId);
     if (!msg) return { deletedIds: [], softDeletedIds: [] };
 
-    const descendants = new Set<string>();
-    const findDescendants = (parentId: string) => {
-      for (const m of messages) {
-        if (m.parent_id === parentId) {
-          descendants.add(m.id);
-          findDescendants(m.id);
-        }
-      }
-    };
+    const childrenMap = new Map<string | null, string[]>();
+    for (const m of messages) {
+      const pId = m.parent_id || null;
+      const children = childrenMap.get(pId) || [];
+      children.push(m.id);
+      childrenMap.set(pId, children);
+    }
 
-    descendants.add(messageId);
-    findDescendants(messageId);
+    const descendants = new Set<string>();
+    const stack = [messageId];
+    while (stack.length > 0) {
+      const currentId = stack.pop()!;
+      if (descendants.has(currentId)) continue;
+      descendants.add(currentId);
+      const children = childrenMap.get(currentId);
+      if (children) stack.push(...children);
+    }
 
     const softDeletedIds = Array.from(descendants);
 

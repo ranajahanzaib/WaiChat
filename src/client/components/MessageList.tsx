@@ -752,12 +752,8 @@ export default function MessageList({
           }
 
           // Assistant group
-          const itemIndex = idx;
-          const lastAssistantIndex = displayItems.findLastIndex(
-            (i) => i.message.role === "assistant",
-          );
           const isCurrentlyStreaming =
-            isStreaming && m.content === "" && itemIndex === lastAssistantIndex;
+            isStreaming && m.content === "" && idx === lastAssistantIndex;
 
           return (
             <div key={m.id} className="group flex flex-col items-start w-full">

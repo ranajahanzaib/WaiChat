@@ -173,18 +173,18 @@ export function useChat(
     }
   }, []);
 
-  const setActiveVersionCb = useCallback(
-    (parentId: string, messageId: string) => {
-      setActiveVersions((prev) => {
-        const next = { ...prev, [parentId]: messageId };
-        if (activeConversation) {
-          localStorage.setItem(`waichat:versions:${activeConversation.id}`, JSON.stringify(next));
-        }
-        return next;
-      });
-    },
-    [activeConversation],
-  );
+  useEffect(() => {
+    if (activeConversation) {
+      localStorage.setItem(
+        `waichat:versions:${activeConversation.id}`,
+        JSON.stringify(activeVersions),
+      );
+    }
+  }, [activeVersions, activeConversation]);
+
+  const setActiveVersionCb = useCallback((parentId: string, messageId: string) => {
+    setActiveVersions((prev) => ({ ...prev, [parentId]: messageId }));
+  }, []);
 
   /**
    * Build the linear message history by traversing the tree.
@@ -208,6 +208,7 @@ export function useChat(
 
       const result: Message[] = [];
       let currentParentId: string | null = null;
+      const visited = new Set<string>();
 
       while (true) {
         const siblings = childrenMap.get(currentParentId);
@@ -227,6 +228,9 @@ export function useChat(
           // Since allMessages is sorted by created_at, the last one in siblings is the latest
           activeChild = siblings[siblings.length - 1];
         }
+
+        if (visited.has(activeChild.id)) break;
+        visited.add(activeChild.id);
 
         result.push(activeChild);
         currentParentId = activeChild.id;
@@ -375,9 +379,10 @@ export function useChat(
       setIsStreaming(true);
 
       try {
-        const contextMessages = [...activeBranch, userMessage]
-          .slice(-20) // context truncation strategy
-          .map((m) => ({ role: m.role, content: m.content }));
+        const contextMessages = [...activeBranch, userMessage].map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
 
         const fullContent = await streamResponse(
           contextMessages,
@@ -491,9 +496,10 @@ export function useChat(
         const targetIndex = activeBranch.findIndex((m) => m.id === targetMessageId);
         const priorBranch = targetIndex >= 0 ? activeBranch.slice(0, targetIndex) : [];
 
-        const contextMessages = [...priorBranch, userMessage]
-          .slice(-20) // truncate oldest first
-          .map((m) => ({ role: m.role, content: m.content }));
+        const contextMessages = [...priorBranch, userMessage].map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
 
         const fullContent = await streamResponse(
           contextMessages,
@@ -559,9 +565,7 @@ export function useChat(
         const targetUserIndex = activeBranch.findIndex((m) => m.id === assistantParentId);
         const priorBranch = targetUserIndex >= 0 ? activeBranch.slice(0, targetUserIndex + 1) : [];
 
-        const contextMessages = priorBranch
-          .slice(-20)
-          .map((m) => ({ role: m.role, content: m.content }));
+        const contextMessages = priorBranch.map((m) => ({ role: m.role, content: m.content }));
 
         const fullContent = await streamResponse(
           contextMessages,
