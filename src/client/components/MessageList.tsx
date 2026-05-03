@@ -8,9 +8,11 @@ import ConfirmModal from "./ConfirmModal";
 
 interface MessageListProps {
   messages: Message[];
+  activeBranch: Message[];
   isStreaming: boolean;
   onSelectPrompt: (prompt: string) => void;
   onRetry?: (messageId: string) => void;
+  onEdit?: (messageId: string, content: string) => void;
   onDelete?: (messageId: string) => void;
   activeVersions: Record<string, string>;
   onVersionChange?: (parentId: string, messageId: string) => void;
@@ -283,9 +285,7 @@ function MarkdownRenderer({ content }: { content: string }) {
             {children}
           </a>
         ),
-        hr: () => (
-          <hr className="my-8 border-black/10 dark:border-white/10" />
-        ),
+        hr: () => <hr className="my-8 border-black/10 dark:border-white/10" />,
         blockquote: ({ children }) => (
           <blockquote className="border-l-4 border-black/20 dark:border-white/20 pl-4 py-1 my-3 text-gray-700 dark:text-white/70 italic">
             {children}
@@ -318,26 +318,19 @@ function MarkdownRenderer({ content }: { content: string }) {
   );
 }
 
-interface DisplayItem {
-  type: "user";
+interface DisplayEntry {
   message: Message;
-}
-
-interface AssistantGroup {
-  type: "assistant";
-  parentId: string;
   siblings: Message[];
-  activeMessage: Message;
   activeIndex: number;
 }
 
-type DisplayEntry = DisplayItem | AssistantGroup;
-
 export default function MessageList({
   messages,
+  activeBranch,
   isStreaming,
   onSelectPrompt,
   onRetry,
+  onEdit,
   onDelete,
   activeVersions,
   onVersionChange,
@@ -346,96 +339,56 @@ export default function MessageList({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isUserScrolled = useRef(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const editInputRef = useRef<HTMLTextAreaElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     role: "user" | "assistant";
     isLastVersion: boolean;
   } | null>(null);
 
+  // Auto-focus edit input
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      // Move cursor to end
+      editInputRef.current.selectionStart = editInputRef.current.value.length;
+      editInputRef.current.selectionEnd = editInputRef.current.value.length;
+    }
+  }, [editingId]);
+
   // Keep track of how many message blocks exist
   const prevMessageCount = useRef(messages.length);
 
-  // Build the display list: group assistant siblings together
+  // Build the display list: map activeBranch and attach siblings
   const displayItems = useMemo((): DisplayEntry[] => {
     const items: DisplayEntry[] = [];
-    // Map: parentId -> list of sibling messages (including the original)
-    const siblingMap = new Map<string, Message[]>();
 
-    // First pass: identify all siblings and group them
+    // Pre-calculate siblings by parent_id
+    const siblingMap = new Map<string | null, Message[]>();
     for (const m of messages) {
-      if (m.role === "assistant" && m.parent_id) {
-        const group = siblingMap.get(m.parent_id) || [];
-        group.push(m);
-        siblingMap.set(m.parent_id, group);
-      }
+      if (m.deleted_at) continue;
+      const pId = m.parent_id || null;
+      const group = siblingMap.get(pId) || [];
+      group.push(m);
+      siblingMap.set(pId, group);
     }
 
-    // Track which parentIds we've already rendered
-    const rendered = new Set<string>();
-
-    for (const m of messages) {
-      if (m.role === "user") {
-        items.push({ type: "user", message: m });
-        continue;
-      }
-
-      // Assistant message
-      if (m.parent_id) {
-        // This is a retry sibling - skip it, it'll be rendered as part of the parent's group
-        if (!rendered.has(m.parent_id)) {
-          // Edge case: the parent might not exist in messages (shouldn't happen, but be safe)
-          // We'll handle it when we encounter the parent
-        }
-        continue;
-      }
-
-      // Original assistant message (no parent_id)
-      const parentId = m.id;
-
-      if (rendered.has(parentId)) continue;
-      rendered.add(parentId);
-
-      const retrySiblings = siblingMap.get(parentId) || [];
-      const allSiblings = [m, ...retrySiblings];
-
-      // Filter out soft-deleted siblings for display purposes
-      const visibleSiblings = allSiblings.filter((s) => !s.deleted_at);
-
-      // If ALL versions are deleted, skip rendering this group entirely
-      if (visibleSiblings.length === 0) continue;
-
-      // Determine active version (only among visible siblings)
-      const explicitActive = activeVersions[parentId];
-      let activeMessage: Message;
-      let activeIndex: number;
-
-      if (explicitActive) {
-        const idx = visibleSiblings.findIndex((s) => s.id === explicitActive);
-        if (idx >= 0) {
-          activeMessage = visibleSiblings[idx];
-          activeIndex = idx;
-        } else {
-          // Fallback to latest visible
-          activeMessage = visibleSiblings[visibleSiblings.length - 1];
-          activeIndex = visibleSiblings.length - 1;
-        }
-      } else {
-        // Default to latest visible
-        activeMessage = visibleSiblings[visibleSiblings.length - 1];
-        activeIndex = visibleSiblings.length - 1;
-      }
+    for (const m of activeBranch) {
+      const pId = m.parent_id || null;
+      const siblings = siblingMap.get(pId) || [];
+      const activeIndex = siblings.findIndex((s) => s.id === m.id);
 
       items.push({
-        type: "assistant",
-        parentId,
-        siblings: visibleSiblings,
-        activeMessage,
-        activeIndex,
+        message: m,
+        siblings,
+        activeIndex: activeIndex >= 0 ? activeIndex : 0,
       });
     }
 
     return items;
-  }, [messages, activeVersions]);
+  }, [messages, activeBranch]);
 
   // Detects when the user scrolls away from the bottom
   const handleScroll = () => {
@@ -480,7 +433,7 @@ export default function MessageList({
   // Pre-calculate the index of the last assistant entry to avoid O(N²) lookups
   const lastAssistantIndex = useMemo(() => {
     for (let i = displayItems.length - 1; i >= 0; i--) {
-      if (displayItems[i].type === "assistant") return i;
+      if (displayItems[i].message.role === "assistant") return i;
     }
     return -1;
   }, [displayItems]);
@@ -598,56 +551,216 @@ export default function MessageList({
       <div className="max-w-4xl mx-auto px-4 md:px-8 py-10 space-y-12">
         {displayItems.map((item, idx) => {
           const isLast = idx === displayItems.length - 1;
-          if (item.type === "user") {
-            const m = item.message;
+          const { message: m, siblings, activeIndex } = item;
+          const totalVersions = siblings.length;
+          const versionKey = m.parent_id || `${m.conversation_id}_root`;
+
+          if (m.role === "user") {
+            const isEditing = editingId === m.id;
             return (
-              <div key={m.id} className="group flex flex-col items-end">
-                <div className="max-w-[90%] rounded-2xl px-5 py-3.5 text-[15px] md:text-base leading-relaxed bg-black/5 dark:bg-white/5 text-gray-900 dark:text-white/95">
-                  <p className="whitespace-pre-wrap">{m.content}</p>
-                </div>
-                <div className="mt-2 flex items-center gap-1">
-                  {m.content && (
-                    <button
-                      onClick={() => handleCopy(m.id, m.content)}
-                      className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
-                      aria-label="Copy message"
+              <div key={m.id} className="group flex flex-col items-end w-full">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">
+                    You
+                  </span>
+                  <div className="w-6 h-6 rounded-full bg-black dark:bg-white flex items-center justify-center">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      className="w-3.5 h-3.5 stroke-[2.5] text-white dark:text-black"
                     >
-                      {copiedId === m.id ? (
-                        <span className="text-[#34C759] text-[10px] font-bold">✓</span>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"
+                      />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                </div>
+
+                {isEditing ? (
+                  <div className="w-full max-w-3xl bg-white dark:bg-[#2d2d2d] border border-black/10 dark:border-white/10 rounded-2xl p-3 shadow-lg">
+                    <textarea
+                      ref={editInputRef}
+                      value={editContent}
+                      onChange={(e) => {
+                        setEditContent(e.target.value);
+                        e.target.style.height = "auto";
+                        e.target.style.height = `${e.target.scrollHeight}px`;
+                      }}
+                      className="w-full bg-transparent text-[15px] md:text-[16px] text-gray-900 dark:text-white/95 border-none outline-none resize-none min-h-[100px]"
+                      placeholder="Edit your message..."
+                    />
+                    <div className="flex justify-end gap-2 mt-3">
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="px-4 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (editContent.trim() !== m.content && onEdit) {
+                            onEdit(m.id, editContent.trim());
+                          }
+                          setEditingId(null);
+                        }}
+                        disabled={!editContent.trim() || editContent.trim() === m.content}
+                        className="px-4 py-1.5 rounded-full text-sm font-medium bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Save & Submit
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-[#f4f4f5] dark:bg-white/10 rounded-2xl rounded-tr-sm px-5 py-3.5 max-w-[85%] sm:max-w-[75%] text-[15px] md:text-[16px] leading-relaxed text-gray-900 dark:text-white/95">
+                    <MarkdownRenderer content={m.content} />
+                  </div>
+                )}
+
+                {!isEditing && (
+                  <div className="mt-2 flex items-center gap-1">
+                    {totalVersions > 1 && (
+                      <div className="flex items-center gap-0.5 mr-2 bg-black/5 dark:bg-white/5 rounded-md px-1 py-0.5">
+                        <button
+                          onClick={() => {
+                            if (activeIndex > 0) {
+                              onVersionChange?.(versionKey, siblings[activeIndex - 1].id);
+                            }
+                          }}
+                          disabled={activeIndex === 0}
+                          className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 disabled:opacity-30 transition-colors cursor-pointer"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            strokeWidth="2.5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M15 19l-7-7 7-7"
+                            />
+                          </svg>
+                        </button>
+                        <span className="text-[10px] text-gray-400 dark:text-white/40 font-bold tabular-nums min-w-[2rem] text-center uppercase">
+                          {activeIndex + 1} / {totalVersions}
+                        </span>
+                        <button
+                          onClick={() => {
+                            if (activeIndex < totalVersions - 1) {
+                              onVersionChange?.(versionKey, siblings[activeIndex + 1].id);
+                            }
+                          }}
+                          disabled={activeIndex === totalVersions - 1}
+                          className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 disabled:opacity-30 transition-colors cursor-pointer"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            strokeWidth="2.5"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+
+                    {!isStreaming && (
+                      <button
+                        onClick={() => {
+                          setEditContent(m.content);
+                          setEditingId(m.id);
+                        }}
+                        className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? "md:opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"}`}
+                        aria-label="Edit message"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                          />
                         </svg>
-                      )}
-                    </button>
-                  )}
-                  {!isStreaming && onDelete && (
-                    <button
-                      onClick={() =>
-                        setDeleteTarget({ id: m.id, role: "user", isLastVersion: false })
-                      }
-                      className={`p-1.5 text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
-                      aria-label="Delete message"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
+                      </button>
+                    )}
+
+                    {m.content && (
+                      <button
+                        onClick={() => handleCopy(m.id, m.content)}
+                        className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? "md:opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"}`}
+                        aria-label="Copy message"
+                      >
+                        {copiedId === m.id ? (
+                          <span className="text-[#34C759] text-[10px] font-bold">✓</span>
+                        ) : (
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                    {!isStreaming && onDelete && (
+                      <button
+                        onClick={() =>
+                          setDeleteTarget({ id: m.id, role: "user", isLastVersion: false })
+                        }
+                        className={`p-1.5 text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? "md:opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"}`}
+                        aria-label="Delete message"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           }
 
           // Assistant group
-          const { parentId, siblings, activeMessage: m, activeIndex } = item;
-          const totalVersions = siblings.length;
           const itemIndex = idx;
+          const lastAssistantIndex = displayItems.findLastIndex(
+            (i) => i.message.role === "assistant",
+          );
           const isCurrentlyStreaming =
             isStreaming && m.content === "" && itemIndex === lastAssistantIndex;
 
           return (
-            <div key={parentId} className="group flex flex-col items-start w-full">
+            <div key={m.id} className="group flex flex-col items-start w-full">
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-6 h-6 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
                   <img src="/waichat.webp" alt="WaiChat" className="w-4 h-4" />
@@ -675,7 +788,7 @@ export default function MessageList({
                     <button
                       onClick={() => {
                         if (activeIndex > 0) {
-                          onVersionChange?.(parentId, siblings[activeIndex - 1].id);
+                          onVersionChange?.(versionKey, siblings[activeIndex - 1].id);
                         }
                       }}
                       disabled={activeIndex === 0}
@@ -698,7 +811,7 @@ export default function MessageList({
                     <button
                       onClick={() => {
                         if (activeIndex < totalVersions - 1) {
-                          onVersionChange?.(parentId, siblings[activeIndex + 1].id);
+                          onVersionChange?.(versionKey, siblings[activeIndex + 1].id);
                         }
                       }}
                       disabled={activeIndex === totalVersions - 1}
@@ -721,14 +834,24 @@ export default function MessageList({
                 {m.content && (
                   <button
                     onClick={() => handleCopy(m.id, m.content)}
-                    className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
+                    className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? "md:opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"}`}
                     aria-label="Copy message"
                   >
                     {copiedId === m.id ? (
                       <span className="text-[#34C759] text-[10px] font-bold">✓</span>
                     ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
                       </svg>
                     )}
                   </button>
@@ -737,11 +860,16 @@ export default function MessageList({
                 {m.content && !isStreaming && onRetry && (
                   <button
                     onClick={() => onRetry(m.id)}
-                    className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
+                    className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-white/40 dark:hover:text-white/80 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? "md:opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"}`}
                     aria-label="Retry response"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
                     </svg>
                   </button>
                 )}
@@ -755,11 +883,16 @@ export default function MessageList({
                         isLastVersion: totalVersions === 1 && !!m.parent_id,
                       })
                     }
-                    className={`p-1.5 text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100 focus:opacity-100'}`}
+                    className={`p-1.5 text-gray-400 hover:text-red-500 dark:text-white/40 dark:hover:text-red-400 transition-opacity flex items-center justify-center cursor-pointer ${isLast ? "md:opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"}`}
                     aria-label="Delete response"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
                     </svg>
                   </button>
                 )}

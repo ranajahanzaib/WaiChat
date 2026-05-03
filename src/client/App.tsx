@@ -1,13 +1,13 @@
-import { useEffect, useState, useRef } from "react";
-import { useChat } from "./hooks/useChat";
-import { useModels, DEFAULT_MODEL_ID } from "./hooks/useModels";
-import { useTransfer } from "./hooks/useTransfer";
-import type { StorageMode } from "./storage";
-import Sidebar from "./components/Sidebar";
-import MessageList from "./components/MessageList";
+import { useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
+import MessageList from "./components/MessageList";
 import ModelPicker from "./components/ModelPicker";
 import SettingsModal from "./components/SettingsModal";
+import Sidebar from "./components/Sidebar";
+import { useChat } from "./hooks/useChat";
+import { DEFAULT_MODEL_ID, useModels } from "./hooks/useModels";
+import { useTransfer } from "./hooks/useTransfer";
+import type { StorageMode } from "./storage";
 
 const STORAGE_MODE_KEY = "waichat:storage-mode";
 const SYSTEM_PROMPT_KEY = "waichat:system-prompt";
@@ -87,6 +87,7 @@ export default function App() {
     messages,
     isStreaming,
     error,
+    activeBranch,
     activeVersions,
     loadConversations,
     selectConversation,
@@ -95,19 +96,15 @@ export default function App() {
     updateActiveModel,
     clearConversation,
     sendMessage,
+    editMessage,
     stopGeneration,
     retryMessage,
     setActiveVersion,
     deleteMessage,
   } = useChat(storageMode, pendingSelectionRef);
 
-  const {
-    transferState,
-    initiateMove,
-    executeMove,
-    cancelMove,
-    retryPendingCloudDeletes,
-  } = useTransfer();
+  const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
+    useTransfer();
 
   const { models } = useModels();
   const [defaultModel, setDefaultModel] = useState(
@@ -117,7 +114,9 @@ export default function App() {
     () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
   );
   const [syncSettings, setSyncSettings] = useState(
-    () => (localStorage.getItem(SYNC_SETTINGS_KEY) ?? localStorage.getItem("waichat:sync-system-prompt")) === "true",
+    () =>
+      (localStorage.getItem(SYNC_SETTINGS_KEY) ??
+        localStorage.getItem("waichat:sync-system-prompt")) === "true",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -454,12 +453,16 @@ export default function App() {
                 </button>
               )}
 
-              <div className={`flex items-center gap-2 border-[0.5px] border-black/5 dark:border-white/10 rounded-full pl-3 pr-2 py-1.5 transition-all ${
-                storageMode === "cloud"
-                  ? "bg-brand-cloud/10 hover:bg-brand-cloud/20 dark:bg-brand-cloud/15 dark:hover:bg-brand-cloud/25"
-                  : "bg-brand-local/10 hover:bg-brand-local/20 dark:bg-brand-local/15 dark:hover:bg-brand-local/25"
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${storageMode === "cloud" ? "bg-brand-cloud" : "bg-brand-local"}`}></div>
+              <div
+                className={`flex items-center gap-2 border-[0.5px] border-black/5 dark:border-white/10 rounded-full pl-3 pr-2 py-1.5 transition-all ${
+                  storageMode === "cloud"
+                    ? "bg-brand-cloud/10 hover:bg-brand-cloud/20 dark:bg-brand-cloud/15 dark:hover:bg-brand-cloud/25"
+                    : "bg-brand-local/10 hover:bg-brand-local/20 dark:bg-brand-local/15 dark:hover:bg-brand-local/25"
+                }`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${storageMode === "cloud" ? "bg-brand-cloud" : "bg-brand-local"}`}
+                ></div>
                 <div className="flex-1 min-w-0">
                   <ModelPicker
                     models={models}
@@ -563,9 +566,28 @@ export default function App() {
 
           <MessageList
             messages={messages}
+            activeBranch={activeBranch}
             isStreaming={isStreaming}
             onSelectPrompt={setPendingPrompt}
-            onRetry={(messageId) => retryMessage(messageId, activeConversation?.model ?? defaultModel, storageMode, systemPrompt)}
+            onRetry={(messageId) =>
+              retryMessage(
+                messageId,
+                activeConversation?.model ?? defaultModel,
+                storageMode,
+                systemPrompt,
+              )
+            }
+            onEdit={(messageId, content) =>
+              activeConversation &&
+              editMessage(
+                activeConversation.id,
+                activeConversation.model ?? defaultModel,
+                content,
+                messageId,
+                storageMode,
+                systemPrompt,
+              )
+            }
             onDelete={(messageId) => deleteMessage(messageId)}
             activeVersions={activeVersions}
             onVersionChange={setActiveVersion}

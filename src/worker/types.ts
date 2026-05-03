@@ -32,6 +32,7 @@ export interface ChatRequest {
   storage_mode: "cloud" | "local";
   system_prompt?: string;
   parent_id?: string;
+  user_parent_id?: string;
   user_message_id?: string;
   assistant_message_id?: string;
 }

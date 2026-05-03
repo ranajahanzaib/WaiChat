@@ -6,6 +6,7 @@ interface UseChatReturn {
   conversations: Conversation[];
   activeConversation: Conversation | null;
   messages: Message[];
+  activeBranch: Message[];
   isStreaming: boolean;
   error: string | null;
   activeVersions: Record<string, string>;
@@ -20,6 +21,14 @@ interface UseChatReturn {
     model: string,
     conversationId: string,
     storageMode: StorageMode,
+    systemPrompt?: string,
+  ) => Promise<void>;
+  editMessage: (
+    conversationId: string,
+    model: string,
+    content: string,
+    targetMessageId: string,
+    storageMode: "local" | "cloud",
     systemPrompt?: string,
   ) => Promise<void>;
   stopGeneration: () => void;
@@ -61,10 +70,7 @@ export function useChat(
   }, [storageMode]);
 
   useEffect(() => {
-    if (
-      selectAfterModeChangeRef.current &&
-      pendingSelectionRef?.current
-    ) {
+    if (selectAfterModeChangeRef.current && pendingSelectionRef?.current) {
       const id = pendingSelectionRef.current;
       pendingSelectionRef.current = null;
       selectAfterModeChangeRef.current = false;
@@ -94,7 +100,12 @@ export function useChat(
         if (!data) return;
         setActiveConversation(data.conversation);
         setMessages(data.messages);
-        setActiveVersions({});
+        try {
+          const stored = localStorage.getItem(`waichat:versions:${id}`);
+          setActiveVersions(stored ? JSON.parse(stored) : {});
+        } catch {
+          setActiveVersions({});
+        }
       } catch {
         setError("Failed to load conversation");
       }
@@ -117,6 +128,7 @@ export function useChat(
   const deleteConversation = useCallback(
     async (id: string) => {
       await storage.deleteConversation(id);
+      localStorage.removeItem(`waichat:versions:${id}`);
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (activeConversation?.id === id) {
         setActiveConversation(null);
@@ -161,79 +173,75 @@ export function useChat(
     }
   }, []);
 
-  const setActiveVersionCb = useCallback((parentId: string, messageId: string) => {
-    setActiveVersions((prev) => ({ ...prev, [parentId]: messageId }));
-  }, []);
+  const setActiveVersionCb = useCallback(
+    (parentId: string, messageId: string) => {
+      setActiveVersions((prev) => {
+        const next = { ...prev, [parentId]: messageId };
+        if (activeConversation) {
+          localStorage.setItem(`waichat:versions:${activeConversation.id}`, JSON.stringify(next));
+        }
+        return next;
+      });
+    },
+    [activeConversation],
+  );
 
   /**
-   * Build the message history for the AI, using the active version of each assistant turn.
-   * Messages that are retry siblings (have parent_id) are excluded unless they are the active version.
+   * Build the linear message history by traversing the tree.
+   * Starts from the root (parent_id = null) and follows the active versions.
    */
-  const buildContextMessages = useCallback(
-    (allMessages: Message[], upToIndex: number, currentActiveVersions: Record<string, string>) => {
-      // Collect all sibling groups
-      const siblingGroups = new Map<string, Message[]>();
+  const getActiveBranch = useCallback(
+    (
+      allMessages: Message[],
+      currentActiveVersions: Record<string, string>,
+      rootKey: string,
+    ): Message[] => {
+      // Group messages by their parent_id
+      const childrenMap = new Map<string | null, Message[]>();
       for (const m of allMessages) {
-        if (m.parent_id) {
-          const group = siblingGroups.get(m.parent_id) || [];
-          group.push(m);
-          siblingGroups.set(m.parent_id, group);
-        }
+        if (m.deleted_at) continue; // skip soft-deleted
+        const pId = m.parent_id || null;
+        const group = childrenMap.get(pId) || [];
+        group.push(m);
+        childrenMap.set(pId, group);
       }
 
-      const result: { role: string; content: string }[] = [];
+      const result: Message[] = [];
+      let currentParentId: string | null = null;
 
-      for (let i = 0; i <= upToIndex; i++) {
-        const m = allMessages[i];
+      while (true) {
+        const siblings = childrenMap.get(currentParentId);
+        if (!siblings || siblings.length === 0) break;
 
-        if (m.role === "user") {
-          result.push({ role: m.role, content: m.content });
-          continue;
+        // Determine active child for this parent
+        const versionKey: string = currentParentId === null ? rootKey : currentParentId;
+        const activeId: string | undefined = currentActiveVersions[versionKey];
+
+        let activeChild: Message | undefined;
+        if (activeId) {
+          activeChild = siblings.find((s) => s.id === activeId);
         }
 
-        // Assistant message
-        // Skip retry siblings in the main loop; they are handled via their parent
-        if (m.parent_id) {
-          continue;
+        // Default to the most recently created sibling if none is explicitly selected
+        if (!activeChild) {
+          // Since allMessages is sorted by created_at, the last one in siblings is the latest
+          activeChild = siblings[siblings.length - 1];
         }
 
-        // Original assistant message (no parent_id)
-        const siblings = siblingGroups.get(m.id);
-        if (siblings && siblings.length > 0) {
-          // This message has retries. Check if one of the retries is the active version.
-          const activeId = currentActiveVersions[m.id];
-          if (activeId && activeId !== m.id) {
-            // A retry is active, the retry itself will be included when we encounter it
-            // But since retries come after in the array and we process in order,
-            // we need to include the active one here
-            const activeMsg = siblings.find((s) => s.id === activeId);
-            if (activeMsg) {
-              result.push({ role: activeMsg.role, content: activeMsg.content });
-            } else {
-              // Fallback to original
-              result.push({ role: m.role, content: m.content });
-            }
-          } else {
-            // Original is active (or no explicit selection - default to latest)
-            if (!activeId) {
-              // Default: use the latest sibling
-              const latest = siblings[siblings.length - 1];
-              result.push({ role: latest.role, content: latest.content });
-            } else {
-              // activeId === m.id, so original is explicitly selected
-              result.push({ role: m.role, content: m.content });
-            }
-          }
-        } else {
-          // No retries, just include it
-          result.push({ role: m.role, content: m.content });
-        }
+        result.push(activeChild);
+        currentParentId = activeChild.id;
       }
 
       return result;
     },
     [],
   );
+
+  const activeBranch = useMemo(() => {
+    if (!activeConversation) return [];
+    const rootKey = `${activeConversation.id}_root`;
+    return getActiveBranch(messages, activeVersions, rootKey);
+  }, [messages, activeVersions, activeConversation, getActiveBranch]);
 
   /**
    * Stream a response from the API, updating the placeholder message as tokens arrive.
@@ -249,6 +257,7 @@ export function useChat(
       systemPrompt?: string,
       parentId?: string,
       userMessageId?: string,
+      userParentId?: string,
     ) => {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
@@ -264,6 +273,7 @@ export function useChat(
           storage_mode: currentStorageMode,
           system_prompt: systemPrompt || undefined,
           parent_id: parentId || undefined,
+          user_parent_id: userParentId || undefined,
           user_message_id: userMessageId || undefined,
           assistant_message_id: assistantMessageId || undefined,
         }),
@@ -335,12 +345,16 @@ export function useChat(
       if (isStreaming) return;
       setError(null);
 
+      const userParentId =
+        activeBranch.length > 0 ? activeBranch[activeBranch.length - 1].id : undefined;
+
       const userMessage: Message = {
         id: crypto.randomUUID(),
         conversation_id: conversationId,
         role: "user",
         content,
         created_at: Date.now(),
+        parent_id: userParentId,
       };
 
       const assistantMessage: Message = {
@@ -350,23 +364,20 @@ export function useChat(
         content: "",
         created_at: Date.now(),
         model,
+        parent_id: userMessage.id,
       };
+
+      // Set it as active
+      const rootKey = `${conversationId}_root`;
+      setActiveVersionCb(userParentId || rootKey, userMessage.id);
 
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsStreaming(true);
 
       try {
-        const allMessages = [...messages, userMessage].map(({ role, content }) => ({
-          role,
-          content,
-        }));
-
-        // For context, we need to use buildContextMessages to respect active versions
-        // But for sendMessage the simple approach works since we're appending
-        const contextMessages = [
-          ...buildContextMessages(messages, messages.length - 1, activeVersions),
-          { role: userMessage.role, content: userMessage.content },
-        ];
+        const contextMessages = [...activeBranch, userMessage]
+          .slice(-20) // context truncation strategy
+          .map((m) => ({ role: m.role, content: m.content }));
 
         const fullContent = await streamResponse(
           contextMessages,
@@ -375,19 +386,14 @@ export function useChat(
           model,
           storageMode,
           systemPrompt,
-          undefined,
+          assistantMessage.parent_id,
           userMessage.id,
+          userMessage.parent_id,
         );
 
         // Save whatever we got (full or partial)
-        await storage.saveMessage({ id: userMessage.id, conversation_id: conversationId, role: "user", content });
-        await storage.saveMessage({
-          id: assistantMessage.id,
-          conversation_id: conversationId,
-          role: "assistant",
-          content: fullContent,
-          model,
-        });
+        await storage.saveMessage(userMessage);
+        await storage.saveMessage({ ...assistantMessage, content: fullContent });
 
         if (messages.length === 0 && storageMode === "local" && fullContent) {
           try {
@@ -433,7 +439,88 @@ export function useChat(
         abortControllerRef.current = null;
       }
     },
-    [isStreaming, messages, storage, activeVersions, buildContextMessages, streamResponse],
+    [isStreaming, messages, storage, activeBranch, setActiveVersionCb, streamResponse],
+  );
+
+  const editMessage = useCallback(
+    async (
+      conversationId: string,
+      model: string,
+      content: string,
+      targetMessageId: string,
+      storageMode: "local" | "cloud",
+      systemPrompt?: string,
+    ) => {
+      if (isStreaming) return;
+      setError(null);
+
+      const targetMsg = messages.find((m) => m.id === targetMessageId);
+      if (!targetMsg) return;
+
+      const userParentId = targetMsg.parent_id;
+
+      const userMessage: Message = {
+        id: crypto.randomUUID(),
+        conversation_id: conversationId,
+        role: "user",
+        content,
+        created_at: Date.now(),
+        parent_id: userParentId,
+      };
+
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        conversation_id: conversationId,
+        role: "assistant",
+        content: "",
+        created_at: Date.now(),
+        model,
+        parent_id: userMessage.id,
+      };
+
+      // Set the newly created user message as the active version for its parent
+      const rootKey = `${conversationId}_root`;
+      const versionKey = userParentId || rootKey;
+      setActiveVersionCb(versionKey, userMessage.id);
+
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setIsStreaming(true);
+
+      try {
+        // Calculate the branch up to this new message
+        const targetIndex = activeBranch.findIndex((m) => m.id === targetMessageId);
+        const priorBranch = targetIndex >= 0 ? activeBranch.slice(0, targetIndex) : [];
+
+        const contextMessages = [...priorBranch, userMessage]
+          .slice(-20) // truncate oldest first
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const fullContent = await streamResponse(
+          contextMessages,
+          assistantMessage.id,
+          conversationId,
+          model,
+          storageMode,
+          systemPrompt,
+          assistantMessage.parent_id,
+          userMessage.id,
+          userMessage.parent_id,
+        );
+
+        await storage.saveMessage(userMessage);
+        await storage.saveMessage({ ...assistantMessage, content: fullContent });
+      } catch (e) {
+        console.error("[editMessage] error:", e);
+        setError("Failed to edit message");
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== assistantMessage.id && m.id !== userMessage.id),
+        );
+      } finally {
+        setIsStreaming(false);
+        abortControllerRef.current = null;
+      }
+    },
+    [isStreaming, messages, storage, activeBranch, setActiveVersionCb, streamResponse],
   );
 
   const retryMessage = useCallback(
@@ -447,24 +534,8 @@ export function useChat(
 
       const conversationId = targetMsg.conversation_id;
 
-      // Determine the parent_id for the new sibling
-      const parentId = targetMsg.parent_id || targetMsg.id;
-
-      // Find the user message that precedes this assistant turn.
-      // We need to find the index of the original (parent) message to locate its preceding user msg.
-      const originalId = targetMsg.parent_id || targetMsg.id;
-      const originalIndex = messages.findIndex((m) => m.id === originalId);
-      if (originalIndex < 0) return;
-
-      // The user message is the one right before the original assistant message
-      let userMsgIndex = originalIndex - 1;
-      while (userMsgIndex >= 0 && messages[userMsgIndex].role !== "user") {
-        userMsgIndex--;
-      }
-      if (userMsgIndex < 0) return;
-
-      // Build context: everything up to and including the user message
-      const contextMessages = buildContextMessages(messages, userMsgIndex, activeVersions);
+      // In the new tree model, the assistant message's parent is the preceding user message
+      const assistantParentId = targetMsg.parent_id;
 
       // Create new placeholder assistant message
       const newAssistantMessage: Message = {
@@ -474,16 +545,24 @@ export function useChat(
         content: "",
         created_at: Date.now(),
         model,
-        parent_id: parentId,
+        parent_id: assistantParentId,
       };
 
-      // Append the new sibling to messages (don't remove old ones)
-      setMessages((prev) => [...prev, newAssistantMessage]);
       // Set it as the active version
-      setActiveVersions((prev) => ({ ...prev, [parentId]: newAssistantMessage.id }));
+      setActiveVersionCb(assistantParentId!, newAssistantMessage.id);
+
+      setMessages((prev) => [...prev, newAssistantMessage]);
       setIsStreaming(true);
 
       try {
+        // Calculate the active branch up to the parent user message
+        const targetUserIndex = activeBranch.findIndex((m) => m.id === assistantParentId);
+        const priorBranch = targetUserIndex >= 0 ? activeBranch.slice(0, targetUserIndex + 1) : [];
+
+        const contextMessages = priorBranch
+          .slice(-20)
+          .map((m) => ({ role: m.role, content: m.content }));
+
         const fullContent = await streamResponse(
           contextMessages,
           newAssistantMessage.id,
@@ -491,34 +570,25 @@ export function useChat(
           model,
           storageMode,
           systemPrompt,
-          parentId,
+          newAssistantMessage.parent_id,
+          undefined,
           undefined,
         );
 
-        // Save the new retry version (local mode only - cloud saves server-side)
-        if (storageMode === "local") {
-          await storage.saveMessage({
-            id: newAssistantMessage.id,
-            conversation_id: conversationId,
-            role: "assistant",
-            content: fullContent,
-            model,
-            parent_id: parentId,
-          });
-        }
+        await storage.saveMessage({ ...newAssistantMessage, content: fullContent });
       } catch (e) {
         console.error("[retryMessage] error:", e);
         setError("Failed to retry message");
         // Remove the failed placeholder
         setMessages((prev) => prev.filter((m) => m.id !== newAssistantMessage.id));
         // Revert active version to the one the user was viewing
-        setActiveVersions((prev) => ({ ...prev, [parentId]: messageId }));
+        setActiveVersionCb(assistantParentId!, messageId);
       } finally {
         setIsStreaming(false);
         abortControllerRef.current = null;
       }
     },
-    [isStreaming, messages, storage, activeVersions, buildContextMessages, streamResponse],
+    [isStreaming, messages, storage, activeBranch, setActiveVersionCb, streamResponse],
   );
 
   const deleteMessageCb = useCallback(
@@ -562,6 +632,7 @@ export function useChat(
     conversations,
     activeConversation,
     messages,
+    activeBranch,
     isStreaming,
     error,
     activeVersions,
@@ -572,6 +643,7 @@ export function useChat(
     updateActiveModel,
     clearConversation,
     sendMessage,
+    editMessage,
     stopGeneration,
     retryMessage,
     setActiveVersion: setActiveVersionCb,
