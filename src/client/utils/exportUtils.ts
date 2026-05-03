@@ -69,6 +69,7 @@ export function convertToChatGPTFormat(conversations: Conversation[], messages: 
     // have parent: null, which is already done above.
 
     result.push({
+      id: conv.id,
       title: conv.title,
       create_time: conv.created_at / 1000,
       update_time: conv.updated_at / 1000,

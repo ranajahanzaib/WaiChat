@@ -156,10 +156,10 @@ app.get("/api/export", async (c) => {
     const { results: settingsRaw } = await db.prepare("SELECT * FROM settings").all();
 
     // Reformat settings into a simple key-value object
-    const settings = (settingsRaw as { key: string; value: string }[]).reduce(
-      (acc, curr) => ({ ...acc, [curr.key]: curr.value }),
-      {} as Record<string, string>,
-    );
+    const settings: Record<string, string> = {};
+    for (const { key, value } of settingsRaw as { key: string; value: string }[]) {
+      settings[key] = value;
+    }
 
     return c.json({ conversations, messages, settings });
   } catch (e) {

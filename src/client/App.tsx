@@ -418,11 +418,9 @@ export default function App() {
       if (scope === "local" || scope === "both") {
         const currentStorage = createStorage("local");
         const conversations = await currentStorage.getConversations();
-        const messages: Message[] = [];
-        for (const conv of conversations) {
-          const data = await currentStorage.getConversation(conv.id);
-          if (data) messages.push(...data.messages);
-        }
+        const messages = (
+          await Promise.all(conversations.map((conv) => currentStorage.getConversation(conv.id)))
+        ).flatMap((data) => data?.messages || []);
         exportData.local = { conversations, messages };
       }
 
@@ -444,10 +442,19 @@ export default function App() {
         prefix: string,
       ) => {
         const adapter = createStorage(mode);
+        const messagesByConv = msgs.reduce(
+          (acc, m) => {
+            if (!acc[m.conversation_id]) acc[m.conversation_id] = [];
+            acc[m.conversation_id].push(m);
+            return acc;
+          },
+          {} as Record<string, Message[]>,
+        );
+
         const total = convs.length;
         for (let i = 0; i < total; i++) {
           const conv = convs[i];
-          const convMessages = msgs.filter((m) => m.conversation_id === conv.id);
+          const convMessages = messagesByConv[conv.id] || [];
           onProgress(`${prefix} ${i + 1}/${total}...`);
           try {
             await adapter.deleteConversation(conv.id);

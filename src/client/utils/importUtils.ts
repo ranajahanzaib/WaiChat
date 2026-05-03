@@ -136,8 +136,7 @@ function parseChatGPTFormat(data: any[]): {
   const messages: Message[] = [];
 
   for (const conv of data) {
-    const id =
-      typeof conv.conversation_id === "string" ? conv.conversation_id : crypto.randomUUID();
+    const id = conv.id || conv.conversation_id || crypto.randomUUID();
 
     conversations.push({
       id,
