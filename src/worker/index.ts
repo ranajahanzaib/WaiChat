@@ -280,18 +280,14 @@ app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) =
     }
 
     const softDeletedIds = Array.from(descendants);
-    const statements: D1PreparedStatement[] = [];
     const now = Date.now();
-
-    for (const id of softDeletedIds) {
-      statements.push(
-        db.prepare("UPDATE messages SET content = '', deleted_at = ? WHERE id = ?").bind(now, id),
-      );
-    }
-
-    statements.push(
+    const placeholders = softDeletedIds.map(() => "?").join(",");
+    const statements: D1PreparedStatement[] = [
+      db
+        .prepare("UPDATE messages SET content = '', deleted_at = ? WHERE id IN (" + placeholders + ")")
+        .bind(now, ...softDeletedIds),
       db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").bind(now, conversationId),
-    );
+    ];
     await db.batch(statements);
 
     return c.json({ success: true, deletedIds: [], softDeletedIds });

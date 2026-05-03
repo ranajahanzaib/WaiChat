@@ -521,6 +521,8 @@ export function useChat(
         setMessages((prev) =>
           prev.filter((m) => m.id !== assistantMessage.id && m.id !== userMessage.id),
         );
+        const rootKey = `${conversationId}_root`;
+        setActiveVersionCb(userParentId || rootKey, targetMessageId);
       } finally {
         setIsStreaming(false);
         abortControllerRef.current = null;
@@ -555,7 +557,8 @@ export function useChat(
       };
 
       // Set it as the active version
-      setActiveVersionCb(assistantParentId!, newAssistantMessage.id);
+      const rootKey = `${conversationId}_root`;
+      setActiveVersionCb(assistantParentId || rootKey, newAssistantMessage.id);
 
       setMessages((prev) => [...prev, newAssistantMessage]);
       setIsStreaming(true);
@@ -586,7 +589,8 @@ export function useChat(
         // Remove the failed placeholder
         setMessages((prev) => prev.filter((m) => m.id !== newAssistantMessage.id));
         // Revert active version to the one the user was viewing
-        setActiveVersionCb(assistantParentId!, messageId);
+        const rootKey = `${conversationId}_root`;
+        setActiveVersionCb(assistantParentId || rootKey, messageId);
       } finally {
         setIsStreaming(false);
         abortControllerRef.current = null;
