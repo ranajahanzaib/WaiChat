@@ -26,7 +26,18 @@ const DEPRECATED: string[] = [
 ];
 
 /** Models present in the catalog but consistently unavailable (non-deprecated reasons) */
-const UNAVAILABLE: string[] = [];
+const UNAVAILABLE: string[] = [
+  /** Error 5016: Requires license agreement 'agree' prompt (@todo: Needs to be addressed in a separate issue) */
+  "@cf/meta/llama-3.2-11b-vision-instruct",
+  /** Error 5006: Incorrect role handling */
+  "@cf/meta/llama-guard-3-8b",
+  /** No output response */
+  "@hf/nousresearch/hermes-2-pro-mistral-7b",
+  /** Error 5021: Context window limit exceeded */
+  "@cf/microsoft/phi-2",
+  /** Error 5021/1031: Context window limit exceeded or upstream error */
+  "@cf/meta-llama/llama-2-7b-chat-hf-lora",
+];
 
 /** Other exclusions */
 const OTHER: string[] = [];
