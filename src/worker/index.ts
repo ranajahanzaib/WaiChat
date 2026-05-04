@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { AVAILABLE_MODELS, generateTitle, streamAiResponse } from "./ai";
+import { EXCLUDED_MODELS } from "./config/model-exclusions";
 import {
   createConversation,
   deleteConversation,
@@ -136,6 +137,7 @@ async function fetchDynamicModels(accountId: string, apiToken: string): Promise<
 
   return data.result
     .map((m) => ({ id: m.name, name: formatModelName(m.name) }))
+    .filter((m) => !EXCLUDED_MODELS.has(m.id))
     .sort((a, b) => scoreModel(b.id) - scoreModel(a.id));
 }
 
@@ -170,7 +172,7 @@ app.get("/api/models", async (c) => {
   }
 
   if (!accountId || !apiToken) {
-    return c.json(AVAILABLE_MODELS);
+    return c.json(AVAILABLE_MODELS.filter((m) => !EXCLUDED_MODELS.has(m.id)));
   }
 
   // Fetch & Cache
@@ -181,7 +183,7 @@ app.get("/api/models", async (c) => {
   } catch (e) {
     console.error("[/api/models] error:", e);
     // Fallback to hardcoded list if API call fails
-    return c.json(AVAILABLE_MODELS);
+    return c.json(AVAILABLE_MODELS.filter((m) => !EXCLUDED_MODELS.has(m.id)));
   }
 });
 
