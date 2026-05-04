@@ -20,6 +20,8 @@ import {
 } from "./db";
 import type { ChatRequest, Env, Model } from "./types";
 
+const FILTERED_AVAILABLE_MODELS = AVAILABLE_MODELS.filter((m) => !EXCLUDED_MODELS.has(m.id));
+
 // Isolate-specific in-memory cache for models
 let modelCache: { data: Model[]; timestamp: number } | null = null;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
@@ -136,8 +138,8 @@ async function fetchDynamicModels(accountId: string, apiToken: string): Promise<
   }
 
   return data.result
+    .filter((m) => !EXCLUDED_MODELS.has(m.name))
     .map((m) => ({ id: m.name, name: formatModelName(m.name) }))
-    .filter((m) => !EXCLUDED_MODELS.has(m.id))
     .sort((a, b) => scoreModel(b.id) - scoreModel(a.id));
 }
 
@@ -172,7 +174,7 @@ app.get("/api/models", async (c) => {
   }
 
   if (!accountId || !apiToken) {
-    return c.json(AVAILABLE_MODELS.filter((m) => !EXCLUDED_MODELS.has(m.id)));
+    return c.json(FILTERED_AVAILABLE_MODELS);
   }
 
   // Fetch & Cache
@@ -183,7 +185,7 @@ app.get("/api/models", async (c) => {
   } catch (e) {
     console.error("[/api/models] error:", e);
     // Fallback to hardcoded list if API call fails
-    return c.json(AVAILABLE_MODELS.filter((m) => !EXCLUDED_MODELS.has(m.id)));
+    return c.json(FILTERED_AVAILABLE_MODELS);
   }
 });
 
