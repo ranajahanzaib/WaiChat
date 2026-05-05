@@ -225,7 +225,11 @@ export default function Sidebar({
                       }}
                       onBlur={() => !isRenaming && setEditingId(null)}
                       disabled={isRenaming}
-                      className="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/20 rounded px-1.5 py-0.5 outline-none text-[13px] md:text-sm focus:ring-1 focus:ring-brand-cloud/50"
+                      className={`w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/20 rounded px-1.5 py-0.5 outline-none text-[13px] md:text-sm focus:ring-1 ${
+                        currentMode === "cloud"
+                          ? "focus:ring-brand-cloud/50"
+                          : "focus:ring-brand-local/50"
+                      }`}
                     />
                   </div>
                 ) : (
