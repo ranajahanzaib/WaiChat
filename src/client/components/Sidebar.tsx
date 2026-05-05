@@ -11,6 +11,7 @@ interface SidebarProps {
   onNew: (mode?: StorageMode) => void;
   onDelete: (id: string) => void;
   onMove: (id: string) => void;
+  onRename: (id: string, title: string) => Promise<void>;
   onSettingsOpen: () => void;
   currentMode: StorageMode;
   savedMode: StorageMode;
@@ -27,6 +28,7 @@ export default function Sidebar({
   onNew,
   onDelete,
   onMove,
+  onRename,
   onSettingsOpen,
   currentMode,
   savedMode, // Kept in props to satisfy the interface and App.tsx
@@ -36,7 +38,11 @@ export default function Sidebar({
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
   const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const targetMode: StorageMode = currentMode === "cloud" ? "local" : "cloud";
 
@@ -82,6 +88,40 @@ export default function Sidebar({
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
   }, [openMenuId]);
+
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
+
+  const handleRenameClick = (c: Conversation) => {
+    setEditTitle(c.title);
+    setEditingId(c.id);
+    setOpenMenuId(null);
+  };
+
+  const handleSaveRename = async (id: string) => {
+    if (isRenaming) return;
+    const trimmed = editTitle.trim();
+    if (!trimmed) {
+      setEditingId(null);
+      return;
+    }
+
+    setIsRenaming(true);
+    try {
+      await onRename(id, trimmed);
+      setEditingId(null);
+    } catch (err) {
+      // Error is handled in useChat (setError), but we might want to keep the input open?
+      // Actually, UX-wise, if it fails, closing it is fine since the error is visible.
+      setEditingId(null);
+    } finally {
+      setIsRenaming(false);
+    }
+  };
 
   return (
     <>
@@ -172,7 +212,25 @@ export default function Sidebar({
                   if (window.innerWidth < 768) e.preventDefault();
                 }}
               >
-                <span className="truncate">{c.title}</span>
+                {editingId === c.id ? (
+                  <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      ref={editInputRef}
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveRename(c.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      onBlur={() => !isRenaming && setEditingId(null)}
+                      disabled={isRenaming}
+                      className="w-full bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/20 rounded px-1.5 py-0.5 outline-none text-[13px] md:text-sm focus:ring-1 focus:ring-brand-cloud/50"
+                    />
+                  </div>
+                ) : (
+                  <span className="truncate">{c.title}</span>
+                )}
                 <div className="flex items-center shrink-0 ml-2">
                   <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
                     <button
@@ -212,6 +270,30 @@ export default function Sidebar({
                         role="menu"
                         className="absolute right-0 mt-1 w-44 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl"
                       >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRenameClick(c);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                          role="menuitem"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            className="w-3.5 h-3.5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
+                          Rename
+                        </button>
+                        <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

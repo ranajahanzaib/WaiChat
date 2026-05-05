@@ -1,4 +1,4 @@
-import type { StorageAdapter, Conversation, Message, DeleteMessageResult } from "./index";
+import type { Conversation, DeleteMessageResult, Message, StorageAdapter } from "./index";
 
 export class CloudStorage implements StorageAdapter {
   async getConversations(): Promise<Conversation[]> {
@@ -30,7 +30,7 @@ export class CloudStorage implements StorageAdapter {
     const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete conversation");
   }
-  
+
   async updateConversationModel(id: string, model: string): Promise<void> {
     const res = await fetch(`/api/conversations/${id}`, {
       method: "PATCH",
@@ -50,7 +50,12 @@ export class CloudStorage implements StorageAdapter {
   }
 
   async updateConversationTitle(id: string, title: string): Promise<void> {
-    // Title is updated server-side after first message — nothing to do here
+    const res = await fetch(`/api/conversations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) throw new Error("Failed to update conversation title");
   }
 
   async deleteMessage(conversationId: string, messageId: string): Promise<DeleteMessageResult> {

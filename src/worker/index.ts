@@ -389,6 +389,8 @@ app.patch("/api/conversations/:id", async (c) => {
   if (body.model) {
     updates.push("model = ?");
     params.push(body.model);
+    updates.push("updated_at = ?");
+    params.push(Date.now());
   }
   if (body.title) {
     updates.push("title = ?");
@@ -396,8 +398,6 @@ app.patch("/api/conversations/:id", async (c) => {
   }
 
   if (updates.length > 0) {
-    updates.push("updated_at = ?");
-    params.push(Date.now());
     params.push(id);
     await db
       .prepare(`UPDATE conversations SET ${updates.join(", ")} WHERE id = ?`)

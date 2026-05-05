@@ -34,10 +34,7 @@ export async function updateConversationTitle(
   id: string,
   title: string,
 ): Promise<void> {
-  await db
-    .prepare("UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?")
-    .bind(title, Date.now(), id)
-    .run();
+  await db.prepare("UPDATE conversations SET title = ? WHERE id = ?").bind(title, id).run();
 }
 
 export async function updateConversationModel(

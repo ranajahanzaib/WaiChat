@@ -104,6 +104,7 @@ export default function App() {
     retryMessage,
     setActiveVersion,
     deleteMessage,
+    renameConversation,
   } = useChat(storageMode, pendingSelectionRef);
 
   const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
@@ -569,6 +570,7 @@ export default function App() {
           onNew={handleNew}
           onDelete={deleteConversation}
           onMove={handleMoveConversation}
+          onRename={renameConversation}
           onSettingsOpen={() => setSettingsOpen(true)}
           currentMode={storageMode}
           savedMode={savedStorageMode}

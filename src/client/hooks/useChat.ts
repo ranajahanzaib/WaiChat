@@ -40,6 +40,7 @@ interface UseChatReturn {
   ) => Promise<void>;
   setActiveVersion: (parentId: string, messageId: string) => void;
   deleteMessage: (messageId: string) => Promise<void>;
+  renameConversation: (id: string, title: string) => Promise<void>;
 }
 
 export function useChat(
@@ -656,5 +657,28 @@ export function useChat(
     retryMessage,
     setActiveVersion: setActiveVersionCb,
     deleteMessage: deleteMessageCb,
+    renameConversation: async (id: string, title: string) => {
+      const trimmed = title.trim();
+      if (!trimmed) return;
+
+      const current = conversations.find((c) => c.id === id);
+      if (!current || current.title === trimmed) return;
+
+      try {
+        await storage.updateConversationTitle(id, trimmed);
+
+        // Update local list
+        setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: trimmed } : c)));
+
+        // Update active conversation if it's the one being renamed
+        if (activeConversation?.id === id) {
+          setActiveConversation((prev) => (prev ? { ...prev, title: trimmed } : null));
+        }
+      } catch (err) {
+        console.error("Failed to rename conversation:", err);
+        setError("Failed to rename conversation");
+        throw err; // Re-throw so the UI can handle UI-specific logic (like closing the input)
+      }
+    },
   };
 }
