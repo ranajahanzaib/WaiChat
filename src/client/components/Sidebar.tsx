@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Conversation, StorageMode } from "../storage";
 import ConfirmModal from "./ConfirmModal";
 
@@ -43,12 +43,40 @@ export default function Sidebar({
   const [isRenaming, setIsRenaming] = useState(false);
   const [isMobileMenu, setIsMobileMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left?: number }>({});
+  const MENU_HEIGHT_ESTIMATE = 160;
   const menuRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPressRef = useRef(false);
   const justOpenedRef = useRef(false);
   const targetMode: StorageMode = currentMode === "cloud" ? "local" : "cloud";
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const id = e.currentTarget.getAttribute("data-id");
+    if (!id) return;
+
+    isLongPressRef.current = false;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+
+    longPressTimer.current = setTimeout(() => {
+      const viewportHeight = window.innerHeight;
+      const hasSpaceBelow = rect.bottom + MENU_HEIGHT_ESTIMATE < viewportHeight;
+
+      setIsMobileMenu(true);
+      if (hasSpaceBelow) {
+        setMenuPos({ top: rect.bottom + 8, left: 16 });
+      } else {
+        setMenuPos({ bottom: viewportHeight - rect.top + 8, left: 16 });
+      }
+
+      justOpenedRef.current = true;
+      setOpenMenuId(id);
+      isLongPressRef.current = true;
+      longPressTimer.current = null;
+    }, 500);
+  }, []);
+
   const handleTouchEnd = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -114,9 +142,8 @@ export default function Sidebar({
       await onRename(id, trimmed);
       setEditingId(null);
     } catch (err) {
-      // Error is handled in useChat (setError), but we might want to keep the input open?
-      // Actually, UX-wise, if it fails, closing it is fine since the error is visible.
-      setEditingId(null);
+      // Keep the input open on error so the user doesn't lose their changes.
+      // The error message is handled by useChat's error state.
     } finally {
       setIsRenaming(false);
     }
@@ -193,32 +220,10 @@ export default function Sidebar({
             const isMoving = movingConversationId === c.id;
             const isMoveDisabled = isMoving || (activeId === c.id && isStreaming);
 
-            const onTouchStart = (e: React.TouchEvent) => {
-              isLongPressRef.current = false;
-              const rect = e.currentTarget.getBoundingClientRect();
-              if (longPressTimer.current) clearTimeout(longPressTimer.current);
-              longPressTimer.current = setTimeout(() => {
-                const menuHeight = 160;
-                const viewportHeight = window.innerHeight;
-                const hasSpaceBelow = rect.bottom + menuHeight < viewportHeight;
-
-                setIsMobileMenu(true);
-                if (hasSpaceBelow) {
-                  setMenuPos({ top: rect.bottom + 8, left: 16 });
-                } else {
-                  setMenuPos({ bottom: viewportHeight - rect.top + 8, left: 16 });
-                }
-
-                justOpenedRef.current = true;
-                setOpenMenuId(c.id);
-                isLongPressRef.current = true;
-                longPressTimer.current = null;
-              }, 500);
-            };
-
             return (
               <div
                 key={c.id}
+                data-id={c.id}
                 className={`group flex items-center rounded-lg pl-3 pr-0 py-1.5 cursor-pointer text-[13px] md:text-sm transition-all duration-150 [--fade-size:1.1rem] hover:[--fade-size:2rem] ${
                   openMenuId === c.id ? "[--fade-size:2rem]" : ""
                 } ${
@@ -239,7 +244,7 @@ export default function Sidebar({
                   }
                   onSelect(c.id);
                 }}
-                onTouchStart={onTouchStart}
+                onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
                 onTouchMove={handleTouchMove}
                 onContextMenu={(e) => {
