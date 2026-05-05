@@ -41,19 +41,14 @@ export default function Sidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
+  const [isMobileMenu, setIsMobileMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left?: number }>({});
   const menuRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPressRef = useRef(false);
+  const justOpenedRef = useRef(false);
   const targetMode: StorageMode = currentMode === "cloud" ? "local" : "cloud";
-
-  const handleTouchStart = (cId: string) => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => {
-      setOpenMenuId(cId);
-      longPressTimer.current = null;
-    }, 500);
-  };
-
   const handleTouchEnd = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -70,6 +65,10 @@ export default function Sidebar({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (justOpenedRef.current) {
+        justOpenedRef.current = false;
+        return;
+      }
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setOpenMenuId(null);
       }
@@ -194,18 +193,53 @@ export default function Sidebar({
             const isMoving = movingConversationId === c.id;
             const isMoveDisabled = isMoving || (activeId === c.id && isStreaming);
 
+            const onTouchStart = (e: React.TouchEvent) => {
+              isLongPressRef.current = false;
+              const rect = e.currentTarget.getBoundingClientRect();
+              if (longPressTimer.current) clearTimeout(longPressTimer.current);
+              longPressTimer.current = setTimeout(() => {
+                const menuHeight = 160;
+                const viewportHeight = window.innerHeight;
+                const hasSpaceBelow = rect.bottom + menuHeight < viewportHeight;
+
+                setIsMobileMenu(true);
+                if (hasSpaceBelow) {
+                  setMenuPos({ top: rect.bottom + 8, left: 16 });
+                } else {
+                  setMenuPos({ bottom: viewportHeight - rect.top + 8, left: 16 });
+                }
+
+                justOpenedRef.current = true;
+                setOpenMenuId(c.id);
+                isLongPressRef.current = true;
+                longPressTimer.current = null;
+              }, 500);
+            };
+
             return (
               <div
                 key={c.id}
-                className={`group flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer text-[13px] md:text-sm transition-all duration-150 ${
+                className={`group flex items-center rounded-lg pl-3 pr-0 py-1.5 cursor-pointer text-[13px] md:text-sm transition-all duration-150 [--fade-size:1.1rem] hover:[--fade-size:2rem] ${
+                  openMenuId === c.id ? "[--fade-size:2rem]" : ""
+                } ${
                   activeId === c.id
                     ? currentMode === "cloud"
                       ? "bg-brand-cloud text-white font-medium"
                       : "bg-brand-local text-gray-900 font-medium"
-                    : "text-gray-600 hover:bg-black/5 hover:text-gray-900 dark:text-white/65 dark:hover:bg-white/5 dark:hover:text-white/95"
+                    : `${
+                        openMenuId === c.id
+                          ? "bg-black/8 dark:bg-white/10 text-gray-900 dark:text-white"
+                          : "text-gray-600 dark:text-white/65"
+                      } hover:bg-black/5 hover:text-gray-900 dark:hover:bg-white/5 dark:hover:text-white/95`
                 }`}
-                onClick={() => onSelect(c.id)}
-                onTouchStart={() => handleTouchStart(c.id)}
+                onClick={() => {
+                  if (isLongPressRef.current) {
+                    isLongPressRef.current = false;
+                    return;
+                  }
+                  onSelect(c.id);
+                }}
+                onTouchStart={onTouchStart}
                 onTouchEnd={handleTouchEnd}
                 onTouchMove={handleTouchMove}
                 onContextMenu={(e) => {
@@ -233,13 +267,30 @@ export default function Sidebar({
                     />
                   </div>
                 ) : (
-                  <span className="truncate">{c.title}</span>
+                  <div
+                    className="flex-1 relative overflow-hidden min-w-0 w-full transition-all duration-200"
+                    style={{
+                      maskImage:
+                        "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
+                      WebkitMaskImage:
+                        "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
+                    }}
+                  >
+                    <span className="whitespace-nowrap">{c.title}</span>
+                  </div>
                 )}
-                <div className="flex items-center shrink-0 ml-2">
-                  <div className="relative" ref={openMenuId === c.id ? menuRef : null}>
+                <div
+                  className={`hidden md:flex items-center shrink-0 transition-all duration-200 overflow-hidden ${
+                    openMenuId === c.id
+                      ? "w-8 ml-2 opacity-100"
+                      : "w-0 opacity-0 group-hover:w-8 group-hover:ml-2 group-hover:opacity-100"
+                  }`}
+                >
+                  <div className="relative">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        setIsMobileMenu(false);
                         setOpenMenuId(openMenuId === c.id ? null : c.id);
                       }}
                       className={`p-1.5 rounded-md focus:outline-none transition-all ${
@@ -268,113 +319,121 @@ export default function Sidebar({
                         <circle cx="12" cy="19" r="1" strokeWidth="2" />
                       </svg>
                     </button>
-
-                    {openMenuId === c.id && (
-                      <div
-                        role="menu"
-                        className="absolute right-0 mt-1 w-44 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-50 overflow-hidden backdrop-blur-xl"
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRenameClick(c);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                          role="menuitem"
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            className="w-3.5 h-3.5"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
-                          Rename
-                        </button>
-                        <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId(null);
-                            if (!isMoveDisabled) setPendingMove(c);
-                          }}
-                          disabled={isMoveDisabled}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          role="menuitem"
-                        >
-                          {isMoving ? (
-                            <svg
-                              className="w-3.5 h-3.5 animate-spin"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                            >
-                              <circle
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                opacity="0.25"
-                              />
-                              <path
-                                d="M4 12a8 8 0 018-8"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                              />
-                            </svg>
-                          ) : (
-                            <svg
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              className="w-3.5 h-3.5"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M7 17L17 7M17 7H8M17 7v9"
-                              />
-                            </svg>
-                          )}
-                          Move Chat to {targetMode === "cloud" ? "Cloud" : "Local"}
-                        </button>
-                        <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId(null);
-                            setPendingDelete(c);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                          role="menuitem"
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            className="w-3.5 h-3.5"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                          Delete
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
+
+                {openMenuId === c.id && (
+                  <div
+                    ref={menuRef}
+                    role="menu"
+                    className={`${
+                      isMobileMenu ? "fixed" : "absolute right-2 mt-8"
+                    } w-44 rounded-xl bg-white dark:bg-[#1c1c1e] shadow-xl border border-black/5 dark:border-white/10 py-1.5 z-[100] overflow-hidden backdrop-blur-xl`}
+                    style={
+                      isMobileMenu
+                        ? {
+                            top: menuPos.top,
+                            bottom: menuPos.bottom,
+                            left: menuPos.left,
+                          }
+                        : {}
+                    }
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRenameClick(c);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                      role="menuitem"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        className="w-3.5 h-3.5"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                      Rename
+                    </button>
+                    <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(null);
+                        if (!isMoveDisabled) setPendingMove(c);
+                      }}
+                      disabled={isMoveDisabled}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      role="menuitem"
+                    >
+                      {isMoving ? (
+                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            opacity="0.25"
+                          />
+                          <path
+                            d="M4 12a8 8 0 018-8"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          className="w-3.5 h-3.5"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M7 17L17 7M17 7H8M17 7v9"
+                          />
+                        </svg>
+                      )}
+                      Move Chat to {targetMode === "cloud" ? "Cloud" : "Local"}
+                    </button>
+                    <div className="h-[0.5px] bg-black/5 dark:bg-white/10 mx-2 my-1" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(null);
+                        setPendingDelete(c);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                      role="menuitem"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        className="w-3.5 h-3.5"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
