@@ -16,6 +16,8 @@ interface SidebarProps {
   currentMode: StorageMode;
   savedMode: StorageMode;
   isStreaming: boolean;
+  streamingConversationId: string | null;
+  streamingStorageMode: StorageMode | null;
   movingConversationId: string | null;
 }
 
@@ -33,6 +35,8 @@ export default function Sidebar({
   currentMode,
   savedMode, // Kept in props to satisfy the interface and App.tsx
   isStreaming,
+  streamingConversationId,
+  streamingStorageMode,
   movingConversationId,
 }: SidebarProps) {
   const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null);
@@ -218,7 +222,9 @@ export default function Sidebar({
           )}
           {conversations.map((c) => {
             const isMoving = movingConversationId === c.id;
-            const isMoveDisabled = isMoving || (activeId === c.id && isStreaming);
+            const isThisStreaming =
+              c.id === streamingConversationId && currentMode === streamingStorageMode;
+            const isMoveDisabled = isMoving || isThisStreaming;
 
             return (
               <div
@@ -273,7 +279,7 @@ export default function Sidebar({
                   </div>
                 ) : (
                   <div
-                    className="flex-1 relative overflow-hidden min-w-0 w-full transition-all duration-200"
+                    className="flex-1 relative flex items-center gap-2 overflow-hidden min-w-0 w-full transition-all duration-200"
                     style={{
                       maskImage:
                         "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
@@ -281,6 +287,20 @@ export default function Sidebar({
                         "linear-gradient(to right, black calc(100% - var(--fade-size)), transparent 100%)",
                     }}
                   >
+                    {isThisStreaming && (
+                      <div
+                        className={`shrink-0 w-1.5 h-1.5 rounded-full animate-pulse ${
+                          activeId === c.id
+                            ? currentMode === "cloud"
+                              ? "bg-white"
+                              : "bg-gray-900"
+                            : currentMode === "cloud"
+                              ? "bg-brand-cloud"
+                              : "bg-brand-local"
+                        }`}
+                        title="Generation in progress..."
+                      />
+                    )}
                     <span className="whitespace-nowrap">{c.title}</span>
                   </div>
                 )}
