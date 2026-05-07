@@ -296,18 +296,16 @@ export function useChat(
       conversationId: string,
       model: string,
       currentStorageMode: StorageMode,
+      signal: AbortSignal,
       systemPrompt?: string,
       parentId?: string,
       userMessageId?: string,
       userParentId?: string,
     ) => {
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: abortController.signal,
+        signal: signal,
         body: JSON.stringify({
           conversation_id: conversationId,
           model,
@@ -451,6 +449,7 @@ export function useChat(
           conversationId,
           model,
           storageMode,
+          abortController.signal,
           systemPrompt,
           assistantMessage.parent_id,
           userMessage.id,
@@ -620,6 +619,7 @@ export function useChat(
           conversationId,
           model,
           storageMode,
+          abortController.signal,
           systemPrompt,
           assistantMessage.parent_id,
           userMessage.id,
@@ -740,6 +740,7 @@ export function useChat(
           conversationId,
           model,
           storageMode,
+          abortController.signal,
           systemPrompt,
           newAssistantMessage.parent_id,
           undefined,
