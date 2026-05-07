@@ -107,27 +107,25 @@ export function useChat(
         const data = await storage.getConversation(id);
         if (!data) return;
         setActiveConversation(data.conversation);
-        setMessages(data.messages);
+
+        let currentMessages = data.messages;
+        const streaming = streamingDataRef.current;
 
         // Merge in-progress streaming messages if this is the active stream in the same storage mode
-        if (
-          streamingDataRef.current?.conversationId === id &&
-          streamingDataRef.current?.storageMode === storageMode
-        ) {
-          const streaming = streamingDataRef.current;
-          setMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const toAdd: Message[] = [];
-            if (streaming.userMessage && !existingIds.has(streaming.userMessage.id)) {
-              toAdd.push(streaming.userMessage);
-            }
-            if (!existingIds.has(streaming.assistantMessage.id)) {
-              toAdd.push(streaming.assistantMessage);
-            }
-            if (toAdd.length === 0) return prev;
-            return [...prev, ...toAdd];
-          });
+        if (streaming?.conversationId === id && streaming?.storageMode === storageMode) {
+          const existingIds = new Set(currentMessages.map((m) => m.id));
+          const toAdd: Message[] = [];
+          if (streaming.userMessage && !existingIds.has(streaming.userMessage.id)) {
+            toAdd.push(streaming.userMessage);
+          }
+          if (!existingIds.has(streaming.assistantMessage.id)) {
+            toAdd.push(streaming.assistantMessage);
+          }
+          if (toAdd.length > 0) {
+            currentMessages = [...currentMessages, ...toAdd];
+          }
         }
+        setMessages(currentMessages);
 
         try {
           const stored = localStorage.getItem(`waichat:versions:${id}`);
