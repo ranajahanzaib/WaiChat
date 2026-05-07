@@ -140,7 +140,7 @@ export function useChat(
         toast.error("Failed to load conversation");
       }
     },
-    [storage, storageMode],
+    [storage, storageMode, mergeStreamingData, toast],
   );
 
   const newConversation = useCallback(
