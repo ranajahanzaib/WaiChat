@@ -15,7 +15,6 @@ interface SidebarProps {
   onSettingsOpen: () => void;
   currentMode: StorageMode;
   savedMode: StorageMode;
-  isStreaming: boolean;
   streamingConversationId: string | null;
   streamingStorageMode: StorageMode | null;
   movingConversationId: string | null;
@@ -34,7 +33,6 @@ export default function Sidebar({
   onSettingsOpen,
   currentMode,
   savedMode, // Kept in props to satisfy the interface and App.tsx
-  isStreaming,
   streamingConversationId,
   streamingStorageMode,
   movingConversationId,
@@ -369,7 +367,7 @@ export default function Sidebar({
                         e.stopPropagation();
                         handleRenameClick(c);
                       }}
-                      disabled={isThisStreaming}
+                      disabled={isMoveDisabled}
                       className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-700 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       role="menuitem"
                     >
@@ -440,7 +438,7 @@ export default function Sidebar({
                         setOpenMenuId(null);
                         setPendingDelete(c);
                       }}
-                      disabled={isThisStreaming}
+                      disabled={isMoveDisabled}
                       className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       role="menuitem"
                     >
