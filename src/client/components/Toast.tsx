@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Toast, ToastType, useToast } from "../hooks/useToast";
+import { Toast, ToastType, useToast, useToasts } from "../hooks/useToast";
 
 export function ToastContainer() {
-  const { toasts } = useToast();
+  const toasts = useToasts();
 
   return (
     <div
