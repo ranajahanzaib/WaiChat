@@ -33,9 +33,15 @@ const UNAVAILABLE: string[] = [
   /** Error 5006: Incorrect role handling */
   "@cf/meta/llama-guard-3-8b",
 
-  /** Error 5021/1031: Unlike standard 5021 context limit errors that resolve in a new chat,
-   * these models fail even in new sessions, suggesting a different root cause. */
   "@cf/meta-llama/llama-2-7b-chat-hf-lora", // 1031
+
+  /** No output response (also deprecating May 30, 2026) */
+  "@hf/nousresearch/hermes-2-pro-mistral-7b",
+
+  /** Error 5021/1031: Unlike standard 5021 context limit errors that resolve in a new chat,
+   * these models fail even in new sessions, suggesting a different root cause.
+   * (also deprecating May 30, 2026) */
+  "@cf/microsoft/phi-2",
 ];
 
 /** Immediately excluded models (e.g. aliased models we want to hide) */
@@ -58,8 +64,8 @@ const DEPRECATING_MAY_2026 = new Set([
   "@cf/mistral/mistral-7b-instruct-v0.1",
   "@hf/google/gemma-7b-it",
   "@cf/google/gemma-3-12b-it",
-  "@hf/nousresearch/hermes-2-pro-mistral-7b", // Previously in UNAVAILABLE
-  "@cf/microsoft/phi-2", // Previously in UNAVAILABLE
+  "@hf/nousresearch/hermes-2-pro-mistral-7b",
+  "@cf/microsoft/phi-2",
   "@cf/defog/sqlcoder-7b-2",
   "@cf/unum/uform-gen2-qwen-500m",
   "@cf/facebook/bart-large-cnn",
