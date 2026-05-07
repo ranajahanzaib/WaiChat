@@ -49,30 +49,31 @@ const EXCLUDED_NOW: string[] = [
   "@cf/moonshotai/kimi-k2.5", // Aliased to K2.6 on May 10th
 ];
 
-/** Models deprecating on May 30th, 2026.
- * Excluded starting May 29th, 2026.
- * Shows a notice before that. */
-const DEPRECATING_MAY_2026 = new Set([
-  "@hf/meta-llama/meta-llama-3-8b-instruct",
-  "@cf/meta/llama-3-8b-instruct",
-  "@cf/meta/llama-3-8b-instruct-awq",
-  "@cf/meta/llama-3.1-8b-instruct",
-  "@cf/meta/llama-3.1-8b-instruct-awq",
-  "@cf/meta/llama-3.1-70b-instruct",
-  "@cf/meta/llama-2-7b-chat-int8",
-  "@cf/meta/llama-2-7b-chat-fp16",
-  "@cf/mistral/mistral-7b-instruct-v0.1",
-  "@hf/google/gemma-7b-it",
-  "@cf/google/gemma-3-12b-it",
-  "@hf/nousresearch/hermes-2-pro-mistral-7b",
-  "@cf/microsoft/phi-2",
-  "@cf/defog/sqlcoder-7b-2",
-  "@cf/unum/uform-gen2-qwen-500m",
-  "@cf/facebook/bart-large-cnn",
-  "@hf/mistral/mistral-7b-instruct-v0.2",
-]);
-
 const MAY_29_2026 = new Date("2026-05-29T00:00:00Z").getTime();
+
+/**
+ * Schedule for upcoming model deprecations.
+ * Maps model ID to the timestamp when it should be fully excluded (1 day before official deprecation).
+ */
+const DEPRECATION_SCHEDULE: Record<string, number> = {
+  "@hf/meta-llama/meta-llama-3-8b-instruct": MAY_29_2026,
+  "@cf/meta/llama-3-8b-instruct": MAY_29_2026,
+  "@cf/meta/llama-3-8b-instruct-awq": MAY_29_2026,
+  "@cf/meta/llama-3.1-8b-instruct": MAY_29_2026,
+  "@cf/meta/llama-3.1-8b-instruct-awq": MAY_29_2026,
+  "@cf/meta/llama-3.1-70b-instruct": MAY_29_2026,
+  "@cf/meta/llama-2-7b-chat-int8": MAY_29_2026,
+  "@cf/meta/llama-2-7b-chat-fp16": MAY_29_2026,
+  "@cf/mistral/mistral-7b-instruct-v0.1": MAY_29_2026,
+  "@hf/google/gemma-7b-it": MAY_29_2026,
+  "@cf/google/gemma-3-12b-it": MAY_29_2026,
+  "@hf/nousresearch/hermes-2-pro-mistral-7b": MAY_29_2026,
+  "@cf/microsoft/phi-2": MAY_29_2026,
+  "@cf/defog/sqlcoder-7b-2": MAY_29_2026,
+  "@cf/unum/uform-gen2-qwen-500m": MAY_29_2026,
+  "@cf/facebook/bart-large-cnn": MAY_29_2026,
+  "@hf/mistral/mistral-7b-instruct-v0.2": MAY_29_2026,
+};
 
 /** Static set for quick lookup of always-excluded models */
 const ALWAYS_EXCLUDED = new Set([...DEPRECATED_LEGACY, ...UNAVAILABLE, ...EXCLUDED_NOW]);
@@ -81,16 +82,16 @@ const ALWAYS_EXCLUDED = new Set([...DEPRECATED_LEGACY, ...UNAVAILABLE, ...EXCLUD
 export function isModelExcluded(id: string): boolean {
   if (ALWAYS_EXCLUDED.has(id)) return true;
 
-  if (DEPRECATING_MAY_2026.has(id)) {
-    return Date.now() >= MAY_29_2026;
-  }
+  const cutoff = DEPRECATION_SCHEDULE[id];
+  if (cutoff && Date.now() >= cutoff) return true;
 
   return false;
 }
 
 /** Get a notice for a model if it's deprecating soon */
 export function getModelNotice(id: string): string | null {
-  if (DEPRECATING_MAY_2026.has(id) && Date.now() < MAY_29_2026) {
+  const cutoff = DEPRECATION_SCHEDULE[id];
+  if (cutoff && Date.now() < cutoff) {
     return "Deprecating Soon";
   }
   return null;

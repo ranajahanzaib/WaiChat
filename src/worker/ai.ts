@@ -26,13 +26,19 @@ export function streamAiResponse(
 }
 
 export async function generateTitle(ai: Ai, firstMessage: string): Promise<string> {
-  const response = (await ai.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
-    messages: [
-      {
-        role: "user",
-        content: `Create a concise, descriptive title (3-6 words) for a chat that starts with the message below. Capture the specific topic or intent. Avoid generic titles like "Chat Inquiry" or "Information Request". Output ONLY the title text without quotes or ending punctuation:\n\n${firstMessage}`,
-      },
-    ],
-  })) as { response: string };
-  return response.response?.trim() ?? "New Conversation";
+  try {
+    const response = (await ai.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
+      messages: [
+        {
+          role: "user",
+          content: `Create a concise, descriptive title (3-6 words) for a chat that starts with the message below. Capture the specific topic or intent. Avoid generic titles like "Chat Inquiry" or "Information Request". Output ONLY the title text without quotes or ending punctuation:\n\n${firstMessage}`,
+        },
+      ],
+    })) as { response: string };
+
+    return response.response?.trim().replace(/^["']|["']$/g, "") || "New Conversation";
+  } catch (e) {
+    console.error("[generateTitle] error:", e);
+    return "New Conversation";
+  }
 }
