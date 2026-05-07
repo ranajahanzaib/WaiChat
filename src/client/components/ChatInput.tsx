@@ -12,7 +12,7 @@ interface ChatInputProps {
 export default function ChatInput({
   onSend,
   disabled,
-  isGenerating,
+  isGenerating = false,
   initialValue,
   onClearInitialValue,
   onAbort,
@@ -52,7 +52,6 @@ export default function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (disabled || isGenerating) return;
       handleSend();
     }
   };
