@@ -99,70 +99,6 @@ export function useChat(
     [storageMode],
   );
 
-  // After mode change: auto-select a conversation if pendingSelectionRef is set
-  const selectAfterModeChangeRef = useRef(false);
-  useEffect(() => {
-    selectAfterModeChangeRef.current = true;
-  }, [storageMode]);
-
-  useEffect(() => {
-    if (selectAfterModeChangeRef.current && pendingSelectionRef?.current) {
-      const id = pendingSelectionRef.current;
-      pendingSelectionRef.current = null;
-      selectAfterModeChangeRef.current = false;
-      // Select the specific conversation (conversation list is loaded by App.tsx)
-      storage.getConversation(id).then((result) => {
-        if (result) {
-          setActiveConversation(result.conversation);
-          const finalMessages = mergeStreamingData(id, result.messages);
-          setMessages(finalMessages);
-        }
-      });
-    }
-  }, [storage, storageMode, pendingSelectionRef]);
-
-  const showBackgroundCompletionToast = useCallback(
-    (targetMode: StorageMode, conversationId: string, title?: string) => {
-      if (storageModeRef.current === targetMode) return;
-
-      const action = onStorageModeChange
-        ? {
-            label: "View",
-            onClick: () => {
-              onStorageModeChange(targetMode);
-              if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
-            },
-          }
-        : undefined;
-
-      toast.success(`Response ready in "${title || "New Conversation"}"`, 6000, action);
-    },
-    [onStorageModeChange, toast, pendingSelectionRef],
-  );
-
-  const showBackgroundErrorToast = useCallback(
-    (actionName: string, targetMode: StorageMode, conversationId: string) => {
-      const isBackground = storageModeRef.current !== targetMode;
-      const modeLabel = targetMode === "cloud" ? "Cloud" : "Local";
-
-      const message = `Failed to ${actionName}${isBackground ? ` in ${modeLabel} mode` : ""}`;
-
-      const action =
-        isBackground && onStorageModeChange
-          ? {
-              label: "Switch",
-              onClick: () => {
-                onStorageModeChange(targetMode);
-                if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
-              },
-            }
-          : undefined;
-
-      toast.error(message, 6000, action);
-    },
-    [onStorageModeChange, toast, pendingSelectionRef],
-  );
-
   const loadConversations = useCallback(async () => {
     try {
       const data = await storage.getConversations();
@@ -191,6 +127,79 @@ export function useChat(
       }
     },
     [storage, storageMode, mergeStreamingData, toast],
+  );
+
+  // After mode change: auto-select a conversation if pendingSelectionRef is set
+  const selectAfterModeChangeRef = useRef(false);
+  useEffect(() => {
+    selectAfterModeChangeRef.current = true;
+  }, [storageMode]);
+
+  useEffect(() => {
+    if (selectAfterModeChangeRef.current && pendingSelectionRef?.current) {
+      const id = pendingSelectionRef.current;
+      pendingSelectionRef.current = null;
+      selectAfterModeChangeRef.current = false;
+      // Select the specific conversation (conversation list is loaded by App.tsx)
+      storage.getConversation(id).then((result) => {
+        if (result) {
+          setActiveConversation(result.conversation);
+          const finalMessages = mergeStreamingData(id, result.messages);
+          setMessages(finalMessages);
+        }
+      });
+    }
+  }, [storage, storageMode, pendingSelectionRef]);
+
+  const showBackgroundCompletionToast = useCallback(
+    (targetMode: StorageMode, conversationId: string, title?: string) => {
+      const isWrongMode = storageModeRef.current !== targetMode;
+      const isWrongChat = activeConversation?.id !== conversationId;
+
+      if (!isWrongMode && !isWrongChat) return;
+
+      const action = {
+        label: "View",
+        onClick: () => {
+          if (isWrongMode && onStorageModeChange) {
+            onStorageModeChange(targetMode);
+            if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
+          } else {
+            selectConversation(conversationId);
+          }
+        },
+      };
+
+      toast.success(`Response ready in "${title || "New Conversation"}"`, 6000, action);
+    },
+    [onStorageModeChange, toast, pendingSelectionRef, activeConversation?.id, selectConversation],
+  );
+
+  const showBackgroundErrorToast = useCallback(
+    (actionName: string, targetMode: StorageMode, conversationId: string) => {
+      const isWrongMode = storageModeRef.current !== targetMode;
+      const isWrongChat = activeConversation?.id !== conversationId;
+
+      if (!isWrongMode && !isWrongChat) return;
+
+      const modeLabel = targetMode === "cloud" ? "Cloud" : "Local";
+      const message = `Failed to ${actionName}${isWrongMode ? ` in ${modeLabel} mode` : ""}`;
+
+      const action = {
+        label: "Switch",
+        onClick: () => {
+          if (isWrongMode && onStorageModeChange) {
+            onStorageModeChange(targetMode);
+            if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
+          } else {
+            selectConversation(conversationId);
+          }
+        },
+      };
+
+      toast.error(message, 6000, action);
+    },
+    [onStorageModeChange, toast, pendingSelectionRef, activeConversation?.id, selectConversation],
   );
 
   const newConversation = useCallback(

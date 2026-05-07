@@ -88,7 +88,11 @@ export default function ChatInput({
             onKeyDown={handleKeyDown}
             placeholder={
               isGenerating && !isStreamingHere
-                ? `Another generation is in progress in ${streamingStorageMode === "cloud" ? "Cloud" : "Local"} mode...`
+                ? "Another generation is in progress" +
+                  (streamingStorageMode
+                    ? " in " + (streamingStorageMode === "cloud" ? "Cloud" : "Local") + " mode"
+                    : "") +
+                  "..."
                 : "Message WaiChat..."
             }
             disabled={disabled || (isGenerating && !isStreamingHere)}
