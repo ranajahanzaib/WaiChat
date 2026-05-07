@@ -1,6 +1,6 @@
 export const AVAILABLE_MODELS = [
   { id: "@cf/google/gemma-4-26b-a4b-it", name: "Google Gemma 4 26B" },
-  { id: "@cf/moonshotai/kimi-k2.5", name: "Kimi K2.5" },
+  { id: "@cf/moonshotai/kimi-k2.6", name: "Kimi K2.6" },
   { id: "@cf/meta/llama-4-scout-17b-16e-instruct", name: "Meta Llama 4 Scout 17B" },
   { id: "@cf/qwen/qwen3-30b-a3b-fp8", name: "Qwen 3 30B" },
   { id: "@cf/openai/gpt-oss-120b", name: "OpenAI GPT OSS 120B" },
@@ -25,15 +25,12 @@ export function streamAiResponse(
   }) as unknown as Promise<ReadableStream>;
 }
 
-export async function generateTitle(
-  ai: Ai,
-  firstMessage: string,
-): Promise<string> {
-  const response = (await ai.run("@cf/meta/llama-3.1-8b-instruct", {
+export async function generateTitle(ai: Ai, firstMessage: string): Promise<string> {
+  const response = (await ai.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
     messages: [
       {
         role: "user",
-        content: `Generate a short 4-6 word title for a conversation that starts with this message. Reply with only the title, no quotes, no punctuation at the end:\n\n${firstMessage}`,
+        content: `Create a concise, descriptive title (3-6 words) for a chat that starts with the message below. Capture the specific topic or intent. Avoid generic titles like "Chat Inquiry" or "Information Request". Output ONLY the title text without quotes or ending punctuation:\n\n${firstMessage}`,
       },
     ],
   })) as { response: string };

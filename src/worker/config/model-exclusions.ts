@@ -4,7 +4,7 @@
  */
 
 /** Error 5028: Deprecated on 2025-10-01 */
-const DEPRECATED: string[] = [
+const DEPRECATED_LEGACY: string[] = [
   "@hf/thebloke/deepseek-coder-6.7b-base-awq",
   "@hf/thebloke/deepseek-coder-6.7b-instruct-awq",
   "@cf/qwen/qwen1.5-14b-chat-awq",
@@ -33,21 +33,69 @@ const UNAVAILABLE: string[] = [
   /** Error 5006: Incorrect role handling */
   "@cf/meta/llama-guard-3-8b",
 
-  /** No output response */
-  "@hf/nousresearch/hermes-2-pro-mistral-7b",
-
   /** Error 5021/1031: Unlike standard 5021 context limit errors that resolve in a new chat,
    * these models fail even in new sessions, suggesting a different root cause. */
-  "@cf/microsoft/phi-2",
   "@cf/meta-llama/llama-2-7b-chat-hf-lora", // 1031
 ];
 
-/** Other exclusions */
-const OTHER: string[] = [];
+/** Immediately excluded models (e.g. aliased models we want to hide) */
+const EXCLUDED_NOW: string[] = [
+  "@cf/moonshotai/kimi-k2.5", // Aliased to K2.6 on May 10th
+];
 
-export const EXCLUDED_MODELS = new Set([...DEPRECATED, ...UNAVAILABLE, ...OTHER]);
+/** Models deprecating on May 30th, 2026.
+ * Excluded starting May 29th, 2026.
+ * Shows a notice before that. */
+const DEPRECATING_MAY_2026: string[] = [
+  "@hf/meta-llama/meta-llama-3-8b-instruct",
+  "@cf/meta/llama-3-8b-instruct",
+  "@cf/meta/llama-3-8b-instruct-awq",
+  "@cf/meta/llama-3.1-8b-instruct",
+  "@cf/meta/llama-3.1-8b-instruct-awq",
+  "@cf/meta/llama-3.1-70b-instruct",
+  "@cf/meta/llama-2-7b-chat-int8",
+  "@cf/meta/llama-2-7b-chat-fp16",
+  "@cf/mistral/mistral-7b-instruct-v0.1",
+  "@hf/google/gemma-7b-it",
+  "@cf/google/gemma-3-12b-it",
+  "@hf/nousresearch/hermes-2-pro-mistral-7b", // Previously in UNAVAILABLE
+  "@cf/microsoft/phi-2", // Previously in UNAVAILABLE
+  "@cf/defog/sqlcoder-7b-2",
+  "@cf/unum/uform-gen2-qwen-500m",
+  "@cf/facebook/bart-large-cnn",
+  "@hf/mistral/mistral-7b-instruct-v0.2",
+];
 
-/** Maps error codes to their excluded model IDs - useful for logging and future admin tooling */
+const MAY_29_2026 = new Date("2026-05-29T00:00:00Z").getTime();
+
+/** Static set for quick lookup of always-excluded models */
+const ALWAYS_EXCLUDED = new Set([...DEPRECATED_LEGACY, ...UNAVAILABLE, ...EXCLUDED_NOW]);
+
+/** Check if a model should be excluded based on the current date */
+export function isModelExcluded(id: string): boolean {
+  if (ALWAYS_EXCLUDED.has(id)) return true;
+
+  if (DEPRECATING_MAY_2026.includes(id)) {
+    return Date.now() >= MAY_29_2026;
+  }
+
+  return false;
+}
+
+/** Get a notice for a model if it's deprecating soon */
+export function getModelNotice(id: string): string | null {
+  if (DEPRECATING_MAY_2026.includes(id) && Date.now() < MAY_29_2026) {
+    return "Deprecating Soon";
+  }
+  return null;
+}
+
+/** For backward compatibility where a Set is required */
+export const EXCLUDED_MODELS = {
+  has: (id: string) => isModelExcluded(id),
+};
+
+/** Maps error codes to their excluded model IDs */
 export const EXCLUDED_BY_ERROR: Record<string, string[]> = {
-  "5028": DEPRECATED,
+  "5028": DEPRECATED_LEGACY,
 };

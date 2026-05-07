@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { AVAILABLE_MODELS, generateTitle, streamAiResponse } from "./ai";
-import { EXCLUDED_MODELS } from "./config/model-exclusions";
+import { EXCLUDED_MODELS, getModelNotice } from "./config/model-exclusions";
 import {
   createConversation,
   deleteConversation,
@@ -20,7 +20,9 @@ import {
 } from "./db";
 import type { ChatRequest, Env, Model } from "./types";
 
-const FILTERED_AVAILABLE_MODELS = AVAILABLE_MODELS.filter((m) => !EXCLUDED_MODELS.has(m.id));
+const FILTERED_AVAILABLE_MODELS = AVAILABLE_MODELS.filter((m) => !EXCLUDED_MODELS.has(m.id)).map(
+  (m) => ({ ...m, notice: getModelNotice(m.id) || undefined }),
+);
 
 // Isolate-specific in-memory cache for models
 let modelCache: { data: Model[]; timestamp: number } | null = null;
@@ -139,7 +141,11 @@ async function fetchDynamicModels(accountId: string, apiToken: string): Promise<
 
   return data.result
     .filter((m) => !EXCLUDED_MODELS.has(m.name))
-    .map((m) => ({ id: m.name, name: formatModelName(m.name) }))
+    .map((m) => ({
+      id: m.name,
+      name: formatModelName(m.name),
+      notice: getModelNotice(m.name) || undefined,
+    }))
     .sort((a, b) => scoreModel(b.id) - scoreModel(a.id));
 }
 

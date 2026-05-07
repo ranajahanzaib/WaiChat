@@ -31,6 +31,7 @@ export default function ModelPicker({
             className="bg-white dark:bg-[#1e1e20] text-gray-900 dark:text-white/95 py-2 font-sans"
           >
             {m.name}
+            {m.notice ? ` (${m.notice})` : ""}
           </option>
         ))}
       </select>

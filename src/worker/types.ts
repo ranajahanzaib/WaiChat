@@ -29,6 +29,7 @@ export interface Message {
 export interface Model {
   id: string;
   name: string;
+  notice?: string;
 }
 
 export interface ChatRequest {

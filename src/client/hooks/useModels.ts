@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 export interface Model {
   id: string;
   name: string;
+  notice?: string;
 }
 
 export const DEFAULT_MODEL_ID = "@cf/google/gemma-4-26b-a4b-it";
 
 export const FALLBACK_MODELS: Model[] = [
   { id: "@cf/google/gemma-4-26b-a4b-it", name: "Google Gemma 4 26B" },
-  { id: "@cf/moonshotai/kimi-k2.5", name: "Kimi K2.5" },
+  { id: "@cf/moonshotai/kimi-k2.6", name: "Kimi K2.6" },
   {
     id: "@cf/meta/llama-4-scout-17b-16e-instruct",
     name: "Meta Llama 4 Scout 17B",
