@@ -116,7 +116,6 @@ export function useChat(
           setActiveConversation(result.conversation);
           const finalMessages = mergeStreamingData(id, result.messages);
           setMessages(finalMessages);
-          if (pendingSelectionRef) pendingSelectionRef.current = null;
         }
       });
     }
