@@ -739,7 +739,8 @@ export default function App() {
           />
           <ChatInput
             onSend={handleSend}
-            disabled={isStreaming}
+            isGenerating={isStreaming}
+            disabled={false}
             initialValue={pendingPrompt}
             onClearInitialValue={() => setPendingPrompt("")}
             onAbort={stopGeneration}

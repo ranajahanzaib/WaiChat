@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 interface ChatInputProps {
   onSend: (content: string) => void;
   disabled: boolean;
+  isGenerating?: boolean;
   initialValue?: string;
   onClearInitialValue?: () => void;
   onAbort?: () => void;
@@ -11,6 +12,7 @@ interface ChatInputProps {
 export default function ChatInput({
   onSend,
   disabled,
+  isGenerating = false,
   initialValue,
   onClearInitialValue,
   onAbort,
@@ -37,7 +39,7 @@ export default function ChatInput({
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault(); // Prevent page reload if triggered via form submission
     const trimmed = value.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed || disabled || isGenerating) return;
     onSend(trimmed);
     setValue("");
 
@@ -57,7 +59,7 @@ export default function ChatInput({
   return (
     <div className="w-full flex justify-center pb-6 pt-2 px-4 md:px-8 shrink-0">
       <div className="w-full max-w-[720px] relative">
-        {disabled && onAbort && (
+        {isGenerating && onAbort && (
           <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20">
             <button
               type="button"
@@ -87,7 +89,7 @@ export default function ChatInput({
 
           <button
             type="submit"
-            disabled={disabled || !value.trim()}
+            disabled={disabled || isGenerating || !value.trim()}
             className="absolute right-3 top-2.5 w-8 h-8 bg-black/5 dark:bg-white/10 border-[0.5px] border-black/10 dark:border-white/10 rounded-full flex items-center justify-center text-gray-500 dark:text-white/80 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black hover:scale-105 disabled:opacity-40 disabled:hover:bg-black/5 disabled:hover:text-gray-500 dark:disabled:hover:bg-white/10 dark:disabled:hover:text-white/80 disabled:hover:scale-100 transition-all duration-200 cursor-pointer"
             aria-label="Send message"
           >
