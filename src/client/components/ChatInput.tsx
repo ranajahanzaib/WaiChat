@@ -26,11 +26,8 @@ export default function ChatInput({
       setValue(initialValue);
       onClearInitialValue?.();
       textareaRef.current?.focus();
-    } else if (initialValue) {
-      // Clear the trigger even if we didn't use it to prevent stale state
-      onClearInitialValue?.();
     }
-  }, [initialValue, onClearInitialValue]);
+  }, [initialValue, onClearInitialValue, value]);
 
   // Auto-resize the textarea
   useEffect(() => {
