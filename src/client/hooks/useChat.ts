@@ -529,7 +529,7 @@ export function useChat(
           setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
         }
       } finally {
-        if (abortControllerRef.current === abortController) {
+        if (abortControllerRef.current === abortController || abortControllerRef.current === null) {
           setIsStreaming(false);
           setStreamingStorageMode(null);
           setStreamingConversationId(null);
@@ -547,9 +547,7 @@ export function useChat(
       streamResponse,
       activeConversation,
       toast,
-      onStorageModeChange,
-      selectConversation,
-      pendingSelectionRef,
+      showBackgroundCompletionToast,
     ],
   );
 
@@ -650,7 +648,7 @@ export function useChat(
           setActiveVersionCb(userParentId || rootKey, targetMessageId);
         }
       } finally {
-        if (abortControllerRef.current === abortController) {
+        if (abortControllerRef.current === abortController || abortControllerRef.current === null) {
           setIsStreaming(false);
           setStreamingStorageMode(null);
           setStreamingConversationId(null);
@@ -668,9 +666,7 @@ export function useChat(
       streamResponse,
       activeConversation,
       toast,
-      onStorageModeChange,
-      selectConversation,
-      pendingSelectionRef,
+      showBackgroundCompletionToast,
     ],
   );
 
@@ -754,7 +750,7 @@ export function useChat(
           setActiveVersionCb(assistantParentId || rootKey, messageId);
         }
       } finally {
-        if (abortControllerRef.current === abortController) {
+        if (abortControllerRef.current === abortController || abortControllerRef.current === null) {
           setIsStreaming(false);
           setStreamingStorageMode(null);
           setStreamingConversationId(null);
@@ -772,9 +768,7 @@ export function useChat(
       streamResponse,
       activeConversation,
       toast,
-      onStorageModeChange,
-      selectConversation,
-      pendingSelectionRef,
+      showBackgroundCompletionToast,
     ],
   );
 
