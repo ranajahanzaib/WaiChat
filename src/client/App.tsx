@@ -107,7 +107,10 @@ export default function App() {
     setActiveVersion,
     deleteMessage,
     renameConversation,
+    streamingConversationId,
   } = useChat(storageMode, pendingSelectionRef);
+
+  const isStreamingHere = isStreaming && activeConversation?.id === streamingConversationId;
 
   const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
     useTransfer();
@@ -713,6 +716,7 @@ export default function App() {
             messages={messages}
             activeBranch={activeBranch}
             isStreaming={isStreaming}
+            isStreamingHere={isStreamingHere}
             onSelectPrompt={setPendingPrompt}
             onRetry={(messageId) =>
               retryMessage(
@@ -740,6 +744,7 @@ export default function App() {
           <ChatInput
             onSend={handleSend}
             isGenerating={isStreaming}
+            isStreamingHere={isStreamingHere}
             disabled={false}
             initialValue={pendingPrompt}
             onClearInitialValue={() => setPendingPrompt("")}
