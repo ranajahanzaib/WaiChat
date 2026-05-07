@@ -36,7 +36,12 @@ export async function generateTitle(ai: Ai, firstMessage: string): Promise<strin
       ],
     })) as { response: string };
 
-    return response.response?.trim().replace(/^["']|["']$/g, "") || "New Conversation";
+    return (
+      response.response
+        ?.trim()
+        .replace(/^["']|["']$/g, "")
+        .replace(/[.!?]$/, "") || "New Conversation"
+    );
   } catch (e) {
     console.error("[generateTitle] error:", e);
     return "New Conversation";
