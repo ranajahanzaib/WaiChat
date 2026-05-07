@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { AVAILABLE_MODELS, generateTitle, streamAiResponse } from "./ai";
-import { EXCLUDED_MODELS, getModelNotice } from "./config/model-exclusions";
+import { getModelNotice, isModelExcluded } from "./config/model-exclusions";
 import {
   createConversation,
   deleteConversation,
@@ -19,10 +19,6 @@ import {
   updateConversationTitle,
 } from "./db";
 import type { ChatRequest, Env, Model } from "./types";
-
-const FILTERED_AVAILABLE_MODELS = AVAILABLE_MODELS.filter((m) => !EXCLUDED_MODELS.has(m.id)).map(
-  (m) => ({ ...m, notice: getModelNotice(m.id) || undefined }),
-);
 
 // Isolate-specific in-memory cache for models
 let modelCache: { data: Model[]; timestamp: number } | null = null;
@@ -140,7 +136,7 @@ async function fetchDynamicModels(accountId: string, apiToken: string): Promise<
   }
 
   return data.result
-    .filter((m) => !EXCLUDED_MODELS.has(m.name))
+    .filter((m) => !isModelExcluded(m.name))
     .map((m) => ({
       id: m.name,
       name: formatModelName(m.name),
@@ -179,8 +175,14 @@ app.get("/api/models", async (c) => {
     }
   }
 
+  // Fallback to hardcoded list
+  const fallback = AVAILABLE_MODELS.filter((m) => !isModelExcluded(m.id)).map((m) => ({
+    ...m,
+    notice: getModelNotice(m.id) || undefined,
+  }));
+
   if (!accountId || !apiToken) {
-    return c.json(FILTERED_AVAILABLE_MODELS);
+    return c.json(fallback);
   }
 
   // Fetch & Cache
@@ -190,8 +192,7 @@ app.get("/api/models", async (c) => {
     return c.json(models);
   } catch (e) {
     console.error("[/api/models] error:", e);
-    // Fallback to hardcoded list if API call fails
-    return c.json(FILTERED_AVAILABLE_MODELS);
+    return c.json(fallback);
   }
 });
 

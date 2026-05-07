@@ -46,7 +46,7 @@ const EXCLUDED_NOW: string[] = [
 /** Models deprecating on May 30th, 2026.
  * Excluded starting May 29th, 2026.
  * Shows a notice before that. */
-const DEPRECATING_MAY_2026: string[] = [
+const DEPRECATING_MAY_2026 = new Set([
   "@hf/meta-llama/meta-llama-3-8b-instruct",
   "@cf/meta/llama-3-8b-instruct",
   "@cf/meta/llama-3-8b-instruct-awq",
@@ -64,7 +64,7 @@ const DEPRECATING_MAY_2026: string[] = [
   "@cf/unum/uform-gen2-qwen-500m",
   "@cf/facebook/bart-large-cnn",
   "@hf/mistral/mistral-7b-instruct-v0.2",
-];
+]);
 
 const MAY_29_2026 = new Date("2026-05-29T00:00:00Z").getTime();
 
@@ -75,7 +75,7 @@ const ALWAYS_EXCLUDED = new Set([...DEPRECATED_LEGACY, ...UNAVAILABLE, ...EXCLUD
 export function isModelExcluded(id: string): boolean {
   if (ALWAYS_EXCLUDED.has(id)) return true;
 
-  if (DEPRECATING_MAY_2026.includes(id)) {
+  if (DEPRECATING_MAY_2026.has(id)) {
     return Date.now() >= MAY_29_2026;
   }
 
@@ -84,16 +84,11 @@ export function isModelExcluded(id: string): boolean {
 
 /** Get a notice for a model if it's deprecating soon */
 export function getModelNotice(id: string): string | null {
-  if (DEPRECATING_MAY_2026.includes(id) && Date.now() < MAY_29_2026) {
+  if (DEPRECATING_MAY_2026.has(id) && Date.now() < MAY_29_2026) {
     return "Deprecating Soon";
   }
   return null;
 }
-
-/** For backward compatibility where a Set is required */
-export const EXCLUDED_MODELS = {
-  has: (id: string) => isModelExcluded(id),
-};
 
 /** Maps error codes to their excluded model IDs */
 export const EXCLUDED_BY_ERROR: Record<string, string[]> = {
