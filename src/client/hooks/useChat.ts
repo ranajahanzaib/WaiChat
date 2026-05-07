@@ -9,6 +9,7 @@ interface UseChatReturn {
   messages: Message[];
   activeBranch: Message[];
   isStreaming: boolean;
+  streamingStorageMode: StorageMode | null;
   activeVersions: Record<string, string>;
   loadConversations: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
@@ -47,12 +48,19 @@ interface UseChatReturn {
 export function useChat(
   storageMode: StorageMode,
   pendingSelectionRef?: React.RefObject<string | null>,
+  onStorageModeChange?: (mode: StorageMode) => void,
 ): UseChatReturn {
+  const storageModeRef = useRef(storageMode);
+  useEffect(() => {
+    storageModeRef.current = storageMode;
+  }, [storageMode]);
+
   const storage = useMemo(() => createStorage(storageMode), [storageMode]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingStorageMode, setStreamingStorageMode] = useState<StorageMode | null>(null);
   const toast = useToast();
   const [activeVersions, setActiveVersions] = useState<Record<string, string>>({});
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -108,6 +116,7 @@ export function useChat(
           setActiveConversation(result.conversation);
           const finalMessages = mergeStreamingData(id, result.messages);
           setMessages(finalMessages);
+          if (pendingSelectionRef) pendingSelectionRef.current = null;
         }
       });
     }
@@ -425,6 +434,10 @@ export function useChat(
 
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsStreaming(true);
+      setStreamingStorageMode(storageMode);
+
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       try {
         const contextMessages = [...activeBranch, userMessage].map((m) => ({
@@ -448,6 +461,8 @@ export function useChat(
         await storage.saveMessage(userMessage);
         await storage.saveMessage({ ...assistantMessage, content: fullContent });
 
+        // Handle auto-titling if needed
+        let finalTitle = activeConversation?.title;
         if (messages.length === 0 && storageMode === "local" && fullContent) {
           try {
             const res = await fetch("/api/title", {
@@ -461,12 +476,14 @@ export function useChat(
             setConversations((prev) =>
               prev.map((c) => (c.id === conversationId ? { ...c, title } : c)),
             );
+            finalTitle = title;
           } catch {
             const title = content.split(" ").slice(0, 5).join(" ");
             await storage.updateConversationTitle(conversationId, title);
             setConversations((prev) =>
               prev.map((c) => (c.id === conversationId ? { ...c, title } : c)),
             );
+            finalTitle = title;
           }
         }
 
@@ -483,18 +500,52 @@ export function useChat(
             } catch {}
           }, 3000);
         }
+
+        // --- BACKGROUND COMPLETION TOAST ---
+        if (storageModeRef.current !== storageMode) {
+          toast.success(`Response ready in "${finalTitle || "New Conversation"}"`, 6000, {
+            label: "View",
+            onClick: () => {
+              if (onStorageModeChange) {
+                onStorageModeChange(storageMode);
+                if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
+              } else {
+                selectConversation(conversationId);
+              }
+            },
+          });
+        }
       } catch (e) {
-        console.error("[sendMessage] error:", e);
-        toast.error("Failed to send message");
-        setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
+        if (e instanceof Error && e.name === "AbortError") {
+          console.log("[sendMessage] Aborted background stream");
+        } else {
+          console.error("[sendMessage] error:", e);
+          toast.error("Failed to send message");
+          setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
+        }
       } finally {
-        setIsStreaming(false);
-        setStreamingConversationId(null);
-        streamingDataRef.current = null;
-        abortControllerRef.current = null;
+        if (abortControllerRef.current === abortController) {
+          setIsStreaming(false);
+          setStreamingStorageMode(null);
+          setStreamingConversationId(null);
+          streamingDataRef.current = null;
+          abortControllerRef.current = null;
+        }
       }
     },
-    [isStreaming, messages, storage, activeBranch, setActiveVersionCb, streamResponse],
+    [
+      isStreaming,
+      messages,
+      storage,
+      activeBranch,
+      setActiveVersionCb,
+      streamResponse,
+      activeConversation,
+      toast,
+      onStorageModeChange,
+      selectConversation,
+      pendingSelectionRef,
+    ],
   );
 
   const editMessage = useCallback(
@@ -548,6 +599,10 @@ export function useChat(
 
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setIsStreaming(true);
+      setStreamingStorageMode(storageMode);
+
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       try {
         // Calculate the branch up to this new message
@@ -573,22 +628,60 @@ export function useChat(
 
         await storage.saveMessage(userMessage);
         await storage.saveMessage({ ...assistantMessage, content: fullContent });
+
+        // --- BACKGROUND COMPLETION TOAST ---
+        if (storageModeRef.current !== storageMode) {
+          toast.success(
+            `Response ready in "${activeConversation?.title || "New Conversation"}"`,
+            6000,
+            {
+              label: "View",
+              onClick: () => {
+                if (onStorageModeChange) {
+                  onStorageModeChange(storageMode);
+                  if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
+                } else {
+                  selectConversation(conversationId);
+                }
+              },
+            },
+          );
+        }
       } catch (e) {
-        console.error("[editMessage] error:", e);
-        toast.error("Failed to edit message");
-        setMessages((prev) =>
-          prev.filter((m) => m.id !== assistantMessage.id && m.id !== userMessage.id),
-        );
-        const rootKey = `${conversationId}_root`;
-        setActiveVersionCb(userParentId || rootKey, targetMessageId);
+        if (e instanceof Error && e.name === "AbortError") {
+          console.log("[editMessage] Aborted background stream");
+        } else {
+          console.error("[editMessage] error:", e);
+          toast.error("Failed to edit message");
+          setMessages((prev) =>
+            prev.filter((m) => m.id !== assistantMessage.id && m.id !== userMessage.id),
+          );
+          const rootKey = `${conversationId}_root`;
+          setActiveVersionCb(userParentId || rootKey, targetMessageId);
+        }
       } finally {
-        setIsStreaming(false);
-        setStreamingConversationId(null);
-        streamingDataRef.current = null;
-        abortControllerRef.current = null;
+        if (abortControllerRef.current === abortController) {
+          setIsStreaming(false);
+          setStreamingStorageMode(null);
+          setStreamingConversationId(null);
+          streamingDataRef.current = null;
+          abortControllerRef.current = null;
+        }
       }
     },
-    [isStreaming, messages, storage, activeBranch, setActiveVersionCb, streamResponse],
+    [
+      isStreaming,
+      messages,
+      storage,
+      activeBranch,
+      setActiveVersionCb,
+      streamResponse,
+      activeConversation,
+      toast,
+      onStorageModeChange,
+      selectConversation,
+      pendingSelectionRef,
+    ],
   );
 
   const retryMessage = useCallback(
@@ -629,6 +722,10 @@ export function useChat(
 
       setMessages((prev) => [...prev, newAssistantMessage]);
       setIsStreaming(true);
+      setStreamingStorageMode(storageMode);
+
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       try {
         // Calculate the active branch up to the parent user message
@@ -650,22 +747,60 @@ export function useChat(
         );
 
         await storage.saveMessage({ ...newAssistantMessage, content: fullContent });
+
+        // --- BACKGROUND COMPLETION TOAST ---
+        if (storageModeRef.current !== storageMode) {
+          toast.success(
+            `Response ready in "${activeConversation?.title || "New Conversation"}"`,
+            6000,
+            {
+              label: "View",
+              onClick: () => {
+                if (onStorageModeChange) {
+                  onStorageModeChange(storageMode);
+                  if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
+                } else {
+                  selectConversation(conversationId);
+                }
+              },
+            },
+          );
+        }
       } catch (e) {
-        console.error("[retryMessage] error:", e);
-        toast.error("Failed to retry message");
-        // Remove the failed placeholder
-        setMessages((prev) => prev.filter((m) => m.id !== newAssistantMessage.id));
-        // Revert active version to the one the user was viewing
-        const rootKey = `${conversationId}_root`;
-        setActiveVersionCb(assistantParentId || rootKey, messageId);
+        if (e instanceof Error && e.name === "AbortError") {
+          console.log("[retryMessage] Aborted background stream");
+        } else {
+          console.error("[retryMessage] error:", e);
+          toast.error("Failed to retry message");
+          // Remove the failed placeholder
+          setMessages((prev) => prev.filter((m) => m.id !== newAssistantMessage.id));
+          // Revert active version to the one the user was viewing
+          const rootKey = `${conversationId}_root`;
+          setActiveVersionCb(assistantParentId || rootKey, messageId);
+        }
       } finally {
-        setIsStreaming(false);
-        setStreamingConversationId(null);
-        streamingDataRef.current = null;
-        abortControllerRef.current = null;
+        if (abortControllerRef.current === abortController) {
+          setIsStreaming(false);
+          setStreamingStorageMode(null);
+          setStreamingConversationId(null);
+          streamingDataRef.current = null;
+          abortControllerRef.current = null;
+        }
       }
     },
-    [isStreaming, messages, storage, activeBranch, setActiveVersionCb, streamResponse],
+    [
+      isStreaming,
+      messages,
+      storage,
+      activeBranch,
+      setActiveVersionCb,
+      streamResponse,
+      activeConversation,
+      toast,
+      onStorageModeChange,
+      selectConversation,
+      pendingSelectionRef,
+    ],
   );
 
   const deleteMessageCb = useCallback(
@@ -711,6 +846,7 @@ export function useChat(
     messages,
     activeBranch,
     isStreaming,
+    streamingStorageMode,
     activeVersions,
     loadConversations,
     selectConversation,
