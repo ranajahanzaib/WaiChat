@@ -121,6 +121,25 @@ export function useChat(
     }
   }, [storage, storageMode, pendingSelectionRef]);
 
+  const showBackgroundCompletionToast = useCallback(
+    (targetMode: StorageMode, conversationId: string, title?: string) => {
+      if (storageModeRef.current === targetMode) return;
+
+      const action = onStorageModeChange
+        ? {
+            label: "View",
+            onClick: () => {
+              onStorageModeChange(targetMode);
+              if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
+            },
+          }
+        : undefined;
+
+      toast.success(`Response ready in "${title || "New Conversation"}"`, 6000, action);
+    },
+    [onStorageModeChange, toast, pendingSelectionRef],
+  );
+
   const loadConversations = useCallback(async () => {
     try {
       const data = await storage.getConversations();
@@ -500,19 +519,7 @@ export function useChat(
         }
 
         // --- BACKGROUND COMPLETION TOAST ---
-        if (storageModeRef.current !== storageMode) {
-          toast.success(`Response ready in "${finalTitle || "New Conversation"}"`, 6000, {
-            label: "View",
-            onClick: () => {
-              if (onStorageModeChange) {
-                onStorageModeChange(storageMode);
-                if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
-              } else {
-                selectConversation(conversationId);
-              }
-            },
-          });
-        }
+        showBackgroundCompletionToast(storageMode, conversationId, finalTitle);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") {
           console.log("[sendMessage] Aborted background stream");
@@ -629,23 +636,7 @@ export function useChat(
         await storage.saveMessage({ ...assistantMessage, content: fullContent });
 
         // --- BACKGROUND COMPLETION TOAST ---
-        if (storageModeRef.current !== storageMode) {
-          toast.success(
-            `Response ready in "${activeConversation?.title || "New Conversation"}"`,
-            6000,
-            {
-              label: "View",
-              onClick: () => {
-                if (onStorageModeChange) {
-                  onStorageModeChange(storageMode);
-                  if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
-                } else {
-                  selectConversation(conversationId);
-                }
-              },
-            },
-          );
-        }
+        showBackgroundCompletionToast(storageMode, conversationId, activeConversation?.title);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") {
           console.log("[editMessage] Aborted background stream");
@@ -749,23 +740,7 @@ export function useChat(
         await storage.saveMessage({ ...newAssistantMessage, content: fullContent });
 
         // --- BACKGROUND COMPLETION TOAST ---
-        if (storageModeRef.current !== storageMode) {
-          toast.success(
-            `Response ready in "${activeConversation?.title || "New Conversation"}"`,
-            6000,
-            {
-              label: "View",
-              onClick: () => {
-                if (onStorageModeChange) {
-                  onStorageModeChange(storageMode);
-                  if (pendingSelectionRef) pendingSelectionRef.current = conversationId;
-                } else {
-                  selectConversation(conversationId);
-                }
-              },
-            },
-          );
-        }
+        showBackgroundCompletionToast(storageMode, conversationId, activeConversation?.title);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") {
           console.log("[retryMessage] Aborted background stream");

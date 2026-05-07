@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import type { StorageMode } from "../storage";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
   disabled: boolean;
   isGenerating?: boolean;
   isStreamingHere?: boolean;
-  streamingStorageMode?: string | null;
+  streamingStorageMode?: StorageMode | null;
   initialValue?: string;
   onClearInitialValue?: () => void;
   onAbort?: () => void;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
 import MessageList from "./components/MessageList";
 import ModelPicker from "./components/ModelPicker";
@@ -88,12 +88,12 @@ export default function App() {
   const pendingSelectionRef = useRef<string | null>(null);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
 
-  const handleStorageToggle = (next: StorageMode) => {
+  const handleStorageToggle = useCallback((next: StorageMode) => {
     setStorageMode(next);
     setSavedStorageMode(next); // Sync saved mode when manually toggled
     localStorage.setItem(STORAGE_MODE_KEY, next);
     setStorageDropdownOpen(false);
-  };
+  }, []);
 
   const {
     conversations,
