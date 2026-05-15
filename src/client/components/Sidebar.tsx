@@ -58,6 +58,7 @@ export default function Sidebar({
   const [pendingMove, setPendingMove] = useState<Conversation | null>(null);
   const [pendingMoveTarget, setPendingMoveTarget] = useState<StorageMode | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const expiryDropdownRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
@@ -113,19 +114,30 @@ export default function Sidebar({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
       if (justOpenedRef.current) {
         justOpenedRef.current = false;
         return;
       }
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+
+      // Handle Context Menu click-away
+      if (menuRef.current && !menuRef.current.contains(target)) {
         setOpenMenuId(null);
+      }
+
+      // Handle Expiry Dropdown click-away
+      if (expiryDropdownRef.current && !expiryDropdownRef.current.contains(target)) {
+        setExpiryDropdownOpen(false);
       }
     };
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenMenuId(null);
+      if (event.key === "Escape") {
+        setOpenMenuId(null);
+        setExpiryDropdownOpen(false);
+      }
     };
 
-    if (openMenuId) {
+    if (openMenuId || expiryDropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       document.addEventListener("keydown", handleEscape);
     }
@@ -134,7 +146,7 @@ export default function Sidebar({
       document.removeEventListener("keydown", handleEscape);
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
-  }, [openMenuId]);
+  }, [openMenuId, expiryDropdownOpen]);
 
   useEffect(() => {
     if (editingId && editInputRef.current) {
@@ -264,36 +276,33 @@ export default function Sidebar({
                   </button>
 
                   {expiryDropdownOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setExpiryDropdownOpen(false)}
-                      />
-                      <div className="absolute left-0 mt-1 w-32 rounded-lg bg-white dark:bg-[#1a1a1a] shadow-xl border border-black/5 dark:border-white/10 z-20 py-1 overflow-hidden backdrop-blur-xl">
-                        {(["instant", "1h", "6h", "24h"] as const).map((option) => (
-                          <button
-                            key={option}
-                            onClick={() => {
-                              onTempExpiryChange(option);
-                              setExpiryDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                              tempExpiry === option
-                                ? "bg-black/5 dark:bg-white/5 text-gray-900 dark:text-white"
-                                : "text-gray-500 dark:text-white/40 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
-                            }`}
-                          >
-                            {option === "instant"
-                              ? "Instantly"
-                              : option === "1h"
-                                ? "1 Hour"
-                                : option === "6h"
-                                  ? "6 Hours"
-                                  : "24 Hours"}
-                          </button>
-                        ))}
-                      </div>
-                    </>
+                    <div
+                      ref={expiryDropdownRef}
+                      className="absolute left-0 mt-1 w-32 rounded-lg bg-white dark:bg-[#1a1a1a] shadow-xl border border-black/5 dark:border-white/10 z-20 py-1 overflow-hidden backdrop-blur-xl"
+                    >
+                      {(["instant", "1h", "6h", "24h"] as const).map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => {
+                            onTempExpiryChange(option);
+                            setExpiryDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                            tempExpiry === option
+                              ? "bg-black/5 dark:bg-white/5 text-gray-900 dark:text-white"
+                              : "text-gray-500 dark:text-white/40 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+                          }`}
+                        >
+                          {option === "instant"
+                            ? "Instantly"
+                            : option === "1h"
+                              ? "1 Hour"
+                              : option === "6h"
+                                ? "6 Hours"
+                                : "24 Hours"}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>

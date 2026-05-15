@@ -117,7 +117,7 @@ See [docs/self-hosting.md](./docs/self-hosting.md) for a step-by-step setup guid
 | ------------- | ------------------------------------------------------------------------------- |
 | **Cloud**     | Chat history stored in Cloudflare D1 (SQLite). Default.                         |
 | **Local**     | Chat history stored in your browser's localStorage. No data leaves your device. |
-| **Temporary** | In-memory only. Wiped on exit. Great for quick, sensitive questions.            |
+| **Temporary** | Configurable auto-expiry (1h to 24h). Wiped automatically via TTL.              |
 
 Toggle between modes in the app settings.
 
