@@ -45,7 +45,7 @@ export class LocalStorage implements StorageAdapter {
     const now = Date.now();
     const conversation: Conversation = {
       id: crypto.randomUUID(),
-      title: "New Conversation",
+      title: "New Chat",
       model,
       created_at: now,
       updated_at: now,
@@ -75,8 +75,13 @@ export class LocalStorage implements StorageAdapter {
       id: msg.id || crypto.randomUUID(),
       created_at: Date.now(),
     };
-    const messages = this.getMessagesRaw(msg.conversation_id);
-    messages.push(message);
+    let messages = this.getMessagesRaw(msg.conversation_id);
+    const existingIndex = message.id ? messages.findIndex((m) => m.id === message.id) : -1;
+    if (existingIndex >= 0) {
+      messages[existingIndex] = message;
+    } else {
+      messages.push(message);
+    }
     this.setMessages(msg.conversation_id, messages);
 
     // Update conversation timestamp

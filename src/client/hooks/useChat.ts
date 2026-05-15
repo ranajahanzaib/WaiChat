@@ -13,7 +13,7 @@ interface UseChatReturn {
   activeVersions: Record<string, string>;
   loadConversations: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
-  newConversation: (model: string) => Promise<Conversation>;
+  newConversation: (model: string, targetMode?: StorageMode) => Promise<Conversation>;
   deleteConversation: (id: string) => Promise<void>;
   updateActiveModel: (model: string) => Promise<void>;
   clearConversation: () => void;
@@ -29,7 +29,7 @@ interface UseChatReturn {
     model: string,
     content: string,
     targetMessageId: string,
-    storageMode: "local" | "cloud",
+    storageMode: StorageMode,
     systemPrompt?: string,
   ) => Promise<void>;
   stopGeneration: () => void;
@@ -116,10 +116,14 @@ export function useChat(
         setActiveConversation(data.conversation);
         setMessages(mergeStreamingData(id, data.messages));
 
-        try {
-          const stored = localStorage.getItem(`waichat:versions:${id}`);
-          setActiveVersions(stored ? JSON.parse(stored) : {});
-        } catch {
+        if (storageMode !== "temporary") {
+          try {
+            const stored = localStorage.getItem(`waichat:versions:${id}`);
+            setActiveVersions(stored ? JSON.parse(stored) : {});
+          } catch {
+            setActiveVersions({});
+          }
+        } else {
           setActiveVersions({});
         }
       } catch {
@@ -203,21 +207,26 @@ export function useChat(
   );
 
   const newConversation = useCallback(
-    async (model: string): Promise<Conversation> => {
-      const conversation = await storage.createConversation(model);
+    async (model: string, targetMode?: StorageMode): Promise<Conversation> => {
+      const mode = targetMode || storageMode;
+      const targetStorage = createStorage(mode);
+      const conversation = await targetStorage.createConversation(model);
+
       setConversations((prev) => [conversation, ...prev]);
       setActiveConversation(conversation);
       setMessages([]);
       setActiveVersions({});
       return conversation;
     },
-    [storage],
+    [storageMode],
   );
 
   const deleteConversation = useCallback(
     async (id: string) => {
       await storage.deleteConversation(id);
-      localStorage.removeItem(`waichat:versions:${id}`);
+      if (storageMode !== "temporary") {
+        localStorage.removeItem(`waichat:versions:${id}`);
+      }
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (activeConversation?.id === id) {
         setActiveConversation(null);
@@ -262,7 +271,7 @@ export function useChat(
   }, []);
 
   useEffect(() => {
-    if (activeConversation) {
+    if (activeConversation && storageMode !== "temporary") {
       localStorage.setItem(
         `waichat:versions:${activeConversation.id}`,
         JSON.stringify(activeVersions),
@@ -498,7 +507,7 @@ export function useChat(
           assistantMessage.id,
           conversationId,
           model,
-          storageMode,
+          storageMode === "temporary" ? "local" : storageMode,
           abortController.signal,
           systemPrompt,
           assistantMessage.parent_id,
@@ -507,8 +516,10 @@ export function useChat(
         );
 
         // Save whatever we got (full or partial)
-        await storage.saveMessage(userMessage);
-        await storage.saveMessage({ ...assistantMessage, content: fullContent });
+        // Use the current storage mode in case it changed (e.g. saved during streaming)
+        const finalStorage = createStorage(storageModeRef.current);
+        await finalStorage.saveMessage(userMessage);
+        await finalStorage.saveMessage({ ...assistantMessage, content: fullContent });
 
         // Handle auto-titling if needed
         let finalTitle = activeConversation?.title;
@@ -551,7 +562,8 @@ export function useChat(
         }
 
         // --- BACKGROUND COMPLETION TOAST ---
-        showBackgroundCompletionToast(storageMode, conversationId, finalTitle);
+        // Use the current storageModeRef to check if the mode has changed during streaming (e.g. chat was saved)
+        showBackgroundCompletionToast(storageModeRef.current, conversationId, finalTitle);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") {
           console.log("[sendMessage] Aborted background stream");
@@ -590,7 +602,7 @@ export function useChat(
       model: string,
       content: string,
       targetMessageId: string,
-      storageMode: "local" | "cloud",
+      storageMode: StorageMode,
       systemPrompt?: string,
     ) => {
       if (isStreaming) return;
@@ -655,7 +667,7 @@ export function useChat(
           assistantMessage.id,
           conversationId,
           model,
-          storageMode,
+          storageMode === "temporary" ? "local" : (storageMode as any),
           abortController.signal,
           systemPrompt,
           assistantMessage.parent_id,
@@ -759,7 +771,7 @@ export function useChat(
           newAssistantMessage.id,
           conversationId,
           model,
-          storageMode,
+          storageMode === "temporary" ? "local" : storageMode,
           abortController.signal,
           systemPrompt,
           newAssistantMessage.parent_id,

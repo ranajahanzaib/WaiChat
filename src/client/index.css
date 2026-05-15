@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-cloud: #0A84FF;
-  --color-brand-local: #FF9F0A;
+  --color-brand-cloud: #0a84ff;
+  --color-brand-local: #ff9f0a;
+  --color-brand-temporary: #a855f7;
 }
 
 /* Override default OS dark mode to look for the .dark class on the <html> tag instead */

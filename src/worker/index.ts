@@ -18,7 +18,7 @@ import {
   updateConversationTimestamp,
   updateConversationTitle,
 } from "./db";
-import type { ChatRequest, Env, Model } from "./types";
+import type { ChatRequest, Env, Message, Model } from "./types";
 
 // Isolate-specific in-memory cache for models
 let modelCache: { data: Model[]; timestamp: number } | null = null;
@@ -416,6 +416,43 @@ app.patch("/api/conversations/:id", async (c) => {
 });
 
 // Delete a single message (with recursive soft-delete logic for its sub-tree)
+app.post("/api/conversations/:conversationId/messages", async (c) => {
+  const conversationId = c.req.param("conversationId");
+  const body = await c.req.json<Message>();
+  const db = c.env.DB;
+
+  const conversation = await getConversation(db, conversationId);
+  if (!conversation) {
+    return c.json({ error: "Conversation not found" }, 404);
+  }
+
+  const messageId = body.id || crypto.randomUUID();
+  const now = Date.now();
+
+  await db
+    .prepare(
+      "INSERT OR REPLACE INTO messages (id, conversation_id, role, content, created_at, model, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(
+      messageId,
+      conversationId,
+      body.role,
+      body.content,
+      body.created_at || now,
+      body.model || null,
+      body.parent_id || null,
+    )
+    .run();
+
+  // Update conversation timestamp
+  await db
+    .prepare("UPDATE conversations SET updated_at = ? WHERE id = ?")
+    .bind(now, conversationId)
+    .run();
+
+  return c.json({ id: messageId, created_at: now });
+});
+
 app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) => {
   const { conversationId, messageId } = c.req.param();
   const db = c.env.DB;

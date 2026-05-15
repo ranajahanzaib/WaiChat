@@ -32,18 +32,31 @@ export interface StorageAdapter {
   saveMessage(message: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message>;
   updateConversationTitle(id: string, title: string): Promise<void>;
   deleteMessage(conversationId: string, messageId: string): Promise<DeleteMessageResult>;
-  exportConversation(id: string): Promise<{ conversation: Conversation; messages: Message[] } | null>;
+  exportConversation(
+    id: string,
+  ): Promise<{ conversation: Conversation; messages: Message[] } | null>;
   importConversation(conversation: Conversation, messages: Message[]): Promise<void>;
 }
 
-export type StorageMode = "cloud" | "local";
+export type StorageMode = "cloud" | "local" | "temporary";
 
 import { CloudStorage } from "./cloud";
 import { LocalStorage } from "./local";
+import { MemoryStorage } from "./memory";
 
 export { CloudStorage } from "./cloud";
 export { LocalStorage } from "./local";
+export { MemoryStorage } from "./memory";
 
 export function createStorage(mode: StorageMode): StorageAdapter {
-  return mode === "cloud" ? new CloudStorage() : new LocalStorage();
+  switch (mode) {
+    case "cloud":
+      return new CloudStorage();
+    case "local":
+      return new LocalStorage();
+    case "temporary":
+      return new MemoryStorage();
+    default:
+      throw new Error(`Unknown storage mode: ${mode}`);
+  }
 }

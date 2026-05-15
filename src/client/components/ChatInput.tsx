@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { StorageMode } from "../storage";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
   disabled: boolean;
+  value: string;
+  onChange: (value: string) => void;
   isGenerating?: boolean;
   isStreamingHere?: boolean;
   streamingStorageMode?: StorageMode | null;
@@ -15,6 +17,8 @@ interface ChatInputProps {
 export default function ChatInput({
   onSend,
   disabled,
+  value,
+  onChange,
   isGenerating = false,
   isStreamingHere = false,
   streamingStorageMode,
@@ -22,16 +26,15 @@ export default function ChatInput({
   onClearInitialValue,
   onAbort,
 }: ChatInputProps) {
-  const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (initialValue) {
-      setValue(initialValue);
+      onChange(initialValue);
       onClearInitialValue?.();
       textareaRef.current?.focus();
     }
-  }, [initialValue, onClearInitialValue]);
+  }, [initialValue, onClearInitialValue, onChange]);
 
   // Auto-resize the textarea
   useEffect(() => {
@@ -46,7 +49,7 @@ export default function ChatInput({
     const trimmed = value.trim();
     if (!trimmed || disabled || isGenerating) return;
     onSend(trimmed);
-    setValue("");
+    onChange("");
 
     // Reset height after sending
     if (textareaRef.current) {
@@ -84,7 +87,7 @@ export default function ChatInput({
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
               isGenerating && !isStreamingHere

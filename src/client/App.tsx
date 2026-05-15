@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
+import ConfirmModal from "./components/ConfirmModal";
 import MessageList from "./components/MessageList";
 import ModelPicker from "./components/ModelPicker";
 import SettingsModal from "./components/SettingsModal";
@@ -34,6 +35,8 @@ export default function App() {
   });
 
   const [pendingPrompt, setPendingPrompt] = useState("");
+  const [inputValue, setInputValue] = useState("");
+  const [newChatDraft, setNewChatDraft] = useState("");
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -87,6 +90,9 @@ export default function App() {
 
   const pendingSelectionRef = useRef<string | null>(null);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
+  const [tempChatConfirmOpen, setTempChatConfirmOpen] = useState(false);
+
+  const isTemporaryChat = storageMode === "temporary";
 
   const handleStorageToggle = useCallback((next: StorageMode) => {
     setStorageMode(next);
@@ -94,6 +100,23 @@ export default function App() {
     localStorage.setItem(STORAGE_MODE_KEY, next);
     setStorageDropdownOpen(false);
   }, []);
+
+  const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
+    useTransfer();
+
+  const { models, refreshModels } = useModels();
+  const [defaultModel, setDefaultModel] = useState(
+    () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
+  );
+  const [systemPrompt, setSystemPrompt] = useState(
+    () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
+  );
+  const [syncSettings, setSyncSettings] = useState(
+    () =>
+      (localStorage.getItem(SYNC_SETTINGS_KEY) ??
+        localStorage.getItem("waichat:sync-system-prompt")) === "true",
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const {
     conversations,
@@ -117,31 +140,90 @@ export default function App() {
     renameConversation,
     streamingConversationId,
     streamingStorageMode,
-  } = useChat(storageMode, pendingSelectionRef, handleStorageToggle);
+  } = useChat(storageMode, pendingSelectionRef, (mode) => {
+    if (mode === "temporary") {
+      handleTemporaryChat();
+    } else {
+      handleStorageToggle(mode);
+    }
+  });
+
+  const handleTemporaryChat = useCallback(async () => {
+    setStorageMode("temporary");
+    setSidebarOpen(false);
+    await newConversation(defaultModel, "temporary");
+    setInputValue(newChatDraft); // Restore the new chat draft
+  }, [newConversation, defaultModel, newChatDraft]);
+
+  const handleEndTemporaryChat = useCallback(async () => {
+    if (activeConversation) {
+      await deleteConversation(activeConversation.id);
+    }
+    setStorageMode(savedStorageMode);
+    clearConversation();
+    setTempChatConfirmOpen(false);
+    setSidebarOpen(true);
+    setInputValue("");
+    toast.success("Temporary session ended");
+  }, [deleteConversation, activeConversation, savedStorageMode, clearConversation, toast]);
+
+  const handleSaveTemporaryChat = useCallback(async () => {
+    if (!activeConversation) return;
+
+    try {
+      const targetMode = savedStorageMode === "temporary" ? "cloud" : savedStorageMode;
+      const targetStorage = createStorage(targetMode);
+
+      // We already have the data in scope from useChat
+      const data = {
+        conversation: { ...activeConversation },
+        messages: [...messages],
+      };
+
+      // Generate a title if it's still default
+      if (data.conversation.title === "New Chat" && data.messages.length > 0) {
+        const firstUserMsg = data.messages.find((m) => m.role === "user");
+        if (firstUserMsg) {
+          try {
+            const titleRes = await fetch("/api/title", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message: firstUserMsg.content }),
+            });
+            const titleData = (await titleRes.json()) as { title?: string };
+            if (titleData.title) {
+              data.conversation.title = titleData.title;
+            } else {
+              data.conversation.title = firstUserMsg.content.split(" ").slice(0, 5).join(" ");
+            }
+          } catch (err) {
+            data.conversation.title = firstUserMsg.content.split(" ").slice(0, 5).join(" ");
+          }
+        }
+      }
+
+      // Import into target
+      await targetStorage.importConversation(data.conversation, data.messages);
+
+      // Switch mode and select
+      pendingSelectionRef.current = data.conversation.id;
+      handleStorageToggle(targetMode);
+
+      if (window.innerWidth >= MOBILE_BREAKPOINT) {
+        setSidebarOpen(true);
+      }
+
+      toast.success(`Chat saved to ${targetMode === "cloud" ? "Cloud" : "Local"}`);
+    } catch (err) {
+      console.error("Failed to save temporary chat:", err);
+      toast.error("Failed to save chat");
+    }
+  }, [activeConversation, messages, savedStorageMode, handleStorageToggle, toast]);
 
   const isStreamingHere =
     isStreaming &&
     activeConversation?.id === streamingConversationId &&
     storageMode === streamingStorageMode;
-
-  const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
-    useTransfer();
-
-  const { models, refreshModels } = useModels();
-  const [defaultModel, setDefaultModel] = useState(
-    () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
-  );
-  const [systemPrompt, setSystemPrompt] = useState(
-    () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
-  );
-  const [syncSettings, setSyncSettings] = useState(
-    () =>
-      (localStorage.getItem(SYNC_SETTINGS_KEY) ??
-        localStorage.getItem("waichat:sync-system-prompt")) === "true",
-  );
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Storage dropdown state for mobile-friendly click toggling
 
   // Sidebar state: Open by default on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -244,6 +326,7 @@ export default function App() {
 
   // Update the URL format to include the storage mode
   useEffect(() => {
+    if (isTemporaryChat) return; // Don't update URL for temporary chats
     const currentPath = window.location.pathname;
     if (activeConversation) {
       const expectedPath = `/c/${storageMode}/${activeConversation.id}`;
@@ -253,7 +336,7 @@ export default function App() {
     } else if (currentPath !== "/") {
       window.history.pushState({}, "", "/");
     }
-  }, [activeConversation, storageMode]);
+  }, [activeConversation, storageMode, isTemporaryChat]);
 
   // Close storage dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -286,25 +369,25 @@ export default function App() {
 
   const handleSelectConversation = (id: string) => {
     selectConversation(id);
+    setInputValue(""); // Clear prompt when switching to an existing chat
     closeSidebarOnMobile();
   };
 
-  // Wrapper for new chat with mode support
-  const handleNew = async (targetMode: StorageMode = storageMode) => {
-    if (targetMode !== storageMode) {
-      // User opted to return to their default mode. We toggle state and reset home.
-      handleStorageToggle(targetMode);
+  const handleNew = async (targetMode?: StorageMode) => {
+    const finalMode = targetMode ?? storageMode;
+    if (finalMode !== storageMode) {
+      handleStorageToggle(finalMode);
       clearConversation();
       window.history.pushState({}, "", "/");
     } else {
-      // Standard new chat in the current mode
       // Prevent creating multiple empty chats if the current one is already empty
       if (activeConversation && messages.length === 0) {
         closeSidebarOnMobile();
         return;
       }
-      await newConversation(defaultModel);
+      await newConversation(defaultModel, finalMode);
     }
+    setInputValue(newChatDraft); // Restore the new chat draft
     closeSidebarOnMobile();
   };
 
@@ -312,10 +395,22 @@ export default function App() {
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
-      const convo = await newConversation(defaultModel);
+      const convo = await newConversation(defaultModel, storageMode);
       await sendMessage(content, defaultModel, convo.id, storageMode, systemPrompt);
     } else {
       await sendMessage(content, currentModel, activeConversation.id, storageMode, systemPrompt);
+    }
+    setInputValue("");
+    if (!activeConversation) {
+      setNewChatDraft(""); // Clear draft once sent in a new chat
+    }
+  };
+
+  const handleInputChange = (val: string) => {
+    setInputValue(val);
+    // If we're in a new chat, update the draft
+    if (!activeConversation) {
+      setNewChatDraft(val);
     }
   };
 
@@ -590,11 +685,56 @@ export default function App() {
           movingConversationId={transferState.conversationId}
         />
 
-        <main className="flex flex-col flex-1 min-w-0 h-full">
+        <main className="flex flex-col flex-1 min-w-0 h-full relative">
+          {/* TEMPORARY CHAT BANNER */}
+          {isTemporaryChat && (
+            <div className="flex items-center justify-between px-6 py-3 bg-slate-500/10 dark:bg-slate-500/20 backdrop-blur-md border-b border-slate-500/30 animate-in fade-in slide-in-from-top duration-500 z-10 shadow-[0_4px_12px_-4px_rgba(100,116,139,0.1)]">
+              <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300">
+                <div className="w-8 h-8 rounded-lg bg-slate-500/20 flex items-center justify-center">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-5 h-5"
+                  >
+                    <path d="M9 10h.01" />
+                    <path d="M15 10h.01" />
+                    <path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xs md:text-sm font-bold tracking-tight leading-none mb-0.5">
+                    Temporary Session
+                  </h3>
+                  <p className="text-[10px] md:text-[11px] opacity-70 font-medium">
+                    Messages are in-memory and won't be saved unless you click save.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveTemporaryChat}
+                  className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-[11px] md:text-xs font-bold rounded-lg shadow-lg shadow-slate-500/20 transition-all border border-slate-400/30"
+                >
+                  Save Chat
+                </button>
+                <button
+                  onClick={() => setTempChatConfirmOpen(true)}
+                  className="px-4 py-1.5 bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 text-[11px] md:text-xs font-bold rounded-lg border border-slate-500/30 transition-all backdrop-blur-sm"
+                >
+                  End
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* TOPBAR */}
           <header className="flex items-center justify-between px-5 py-4 border-b-[0.5px] border-black/5 dark:border-white/10 shrink-0 transition-colors duration-300">
             <div className="flex items-center gap-3">
-              {!sidebarOpen && (
+              {!sidebarOpen && !isTemporaryChat && (
                 <button
                   onClick={() => setSidebarOpen(true)}
                   className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
@@ -614,13 +754,21 @@ export default function App() {
 
               <div
                 className={`flex items-center gap-2 border-[0.5px] border-black/5 dark:border-white/10 rounded-full pl-3 pr-2 py-1.5 transition-all ${
-                  storageMode === "cloud"
-                    ? "bg-brand-cloud/10 hover:bg-brand-cloud/20 dark:bg-brand-cloud/15 dark:hover:bg-brand-cloud/25"
-                    : "bg-brand-local/10 hover:bg-brand-local/20 dark:bg-brand-local/15 dark:hover:bg-brand-local/25"
+                  isTemporaryChat
+                    ? "bg-slate-500/10 hover:bg-slate-500/20 dark:bg-slate-500/15 dark:hover:bg-slate-500/25"
+                    : storageMode === "cloud"
+                      ? "bg-brand-cloud/10 hover:bg-brand-cloud/20 dark:bg-brand-cloud/15 dark:hover:bg-brand-cloud/25"
+                      : "bg-brand-local/10 hover:bg-brand-local/20 dark:bg-brand-local/15 dark:hover:bg-brand-local/25"
                 }`}
               >
                 <div
-                  className={`w-2 h-2 rounded-full ${storageMode === "cloud" ? "bg-brand-cloud" : "bg-brand-local"}`}
+                  className={`w-2 h-2 rounded-full ${
+                    isTemporaryChat
+                      ? "bg-slate-500 shadow-sm shadow-slate-500/50"
+                      : storageMode === "cloud"
+                        ? "bg-brand-cloud"
+                        : "bg-brand-local"
+                  }`}
                 ></div>
                 <div className="flex-1 min-w-0">
                   <ModelPicker
@@ -636,19 +784,26 @@ export default function App() {
             <div className="flex items-center gap-3">
               <div className="relative storage-dropdown-container shrink-0">
                 <button
-                  onClick={() => setStorageDropdownOpen(!storageDropdownOpen)}
-                  className="flex items-center gap-2 bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-[0.5px] border-black/5 dark:border-white/10 rounded-full px-3 py-1.5 text-gray-700 hover:text-gray-900 dark:text-white/65 dark:hover:text-white/95 text-xs md:text-sm font-medium cursor-pointer transition-all focus:outline-none"
+                  onClick={() => !isTemporaryChat && setStorageDropdownOpen(!storageDropdownOpen)}
+                  disabled={isTemporaryChat}
+                  className={`flex items-center gap-2 bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-[0.5px] border-black/5 dark:border-white/10 rounded-full px-3 py-1.5 text-gray-700 hover:text-gray-900 dark:text-white/65 dark:hover:text-white/95 text-xs md:text-sm font-medium transition-all focus:outline-none ${
+                    isTemporaryChat ? "cursor-default opacity-80" : "cursor-pointer"
+                  }`}
                   aria-expanded={storageDropdownOpen}
                 >
-                  {storageMode === "cloud" ? (
+                  {isTemporaryChat ? (
+                    <div className="w-2 h-2 rounded-full bg-slate-500 shadow-sm shadow-slate-500/30 dark:shadow-slate-500/50"></div>
+                  ) : storageMode === "cloud" ? (
                     <div className="w-2 h-2 rounded-full bg-brand-cloud shadow-sm shadow-brand-cloud/30 dark:shadow-brand-cloud/50"></div>
                   ) : (
                     <div className="w-2 h-2 rounded-full bg-brand-local shadow-sm shadow-brand-local/30 dark:shadow-brand-local/50"></div>
                   )}
-                  {storageMode === "cloud" ? "Cloud" : "Local"}
-                  <svg className="w-3 h-3 ml-1" viewBox="0 0 12 12" fill="currentColor">
-                    <path d="M6 8L1 3h10z" />
-                  </svg>
+                  {isTemporaryChat ? "Temporary" : storageMode === "cloud" ? "Cloud" : "Local"}
+                  {!isTemporaryChat && (
+                    <svg className="w-3 h-3 ml-1" viewBox="0 0 12 12" fill="currentColor">
+                      <path d="M6 8L1 3h10z" />
+                    </svg>
+                  )}
                 </button>
 
                 <div
@@ -659,16 +814,20 @@ export default function App() {
                       : "opacity-0 scale-95 invisible"
                   }`}
                 >
-                  {(["cloud", "local"] as StorageMode[]).map((mode) => (
+                  {(["cloud", "local", "temporary"] as StorageMode[]).map((mode) => (
                     <button
                       key={mode}
                       role="menuitem"
-                      onClick={() => handleStorageToggle(mode)}
+                      onClick={() =>
+                        mode === "temporary" ? handleTemporaryChat() : handleStorageToggle(mode)
+                      }
                       className={`w-full flex flex-col items-start px-3 py-2.5 text-left rounded-xl transition-all duration-200 cursor-pointer ${
                         storageMode === mode
                           ? mode === "cloud"
                             ? "bg-brand-cloud/10 dark:bg-brand-cloud/20"
-                            : "bg-brand-local/10 dark:bg-brand-local/20"
+                            : mode === "local"
+                              ? "bg-brand-local/10 dark:bg-brand-local/20"
+                              : "bg-slate-500/10 dark:bg-slate-500/20"
                           : "hover:bg-black/5 dark:hover:bg-white/10"
                       }`}
                     >
@@ -677,43 +836,78 @@ export default function App() {
                           storageMode === mode
                             ? mode === "cloud"
                               ? "text-brand-cloud"
-                              : "text-brand-local"
+                              : mode === "local"
+                                ? "text-brand-local"
+                                : "text-slate-500"
                             : "text-gray-900 dark:text-white/95"
                         }`}
                       >
-                        {mode === "cloud" ? "Cloud (D1)" : "Local (Browser)"}
+                        {mode === "cloud"
+                          ? "Cloud (D1)"
+                          : mode === "local"
+                            ? "Local (Browser)"
+                            : "Temporary (Memory)"}
                       </p>
                       <p
                         className={`text-[11px] md:text-xs mt-0.5 ${
                           storageMode === mode
                             ? mode === "cloud"
                               ? "text-brand-cloud/70"
-                              : "text-brand-local/70"
+                              : mode === "local"
+                                ? "text-brand-local/70"
+                                : "text-slate-500/70"
                             : "text-gray-500 dark:text-white/40"
                         }`}
                       >
-                        {mode === "cloud" ? "Syncs across devices" : "Stays in your browser"}
+                        {mode === "cloud"
+                          ? "Syncs across devices"
+                          : mode === "local"
+                            ? "Stays in your browser"
+                            : "Won't be saved"}
                       </p>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <button
-                onClick={() => handleNew(storageMode)}
-                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
-                title="New Chat"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  className="w-5 h-5 stroke-2"
-                >
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-              </button>
+              {!isTemporaryChat && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handleTemporaryChat}
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-slate-600 hover:bg-slate-50 dark:text-white/65 dark:hover:text-slate-400 dark:hover:bg-slate-500/10 transition-colors focus:outline-none"
+                    title="Temporary Chat"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-4.5 h-4.5"
+                    >
+                      <path d="M9 10h.01" />
+                      <path d="M15 10h.01" />
+                      <path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleNew(storageMode)}
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
+                    title="New Chat"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      className="w-5 h-5 stroke-2"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           </header>
 
@@ -748,6 +942,8 @@ export default function App() {
           />
           <ChatInput
             onSend={handleSend}
+            value={inputValue}
+            onChange={handleInputChange}
             isGenerating={isStreaming}
             isStreamingHere={isStreamingHere}
             streamingStorageMode={streamingStorageMode}
@@ -775,6 +971,16 @@ export default function App() {
           theme={theme}
           onThemeChange={setTheme}
           refreshModels={refreshModels}
+        />
+
+        <ConfirmModal
+          open={tempChatConfirmOpen}
+          title="End temporary chat?"
+          description="Your messages in this session will be permanently deleted and cannot be recovered."
+          confirmLabel="End Chat"
+          variant="destructive"
+          onConfirm={handleEndTemporaryChat}
+          onCancel={() => setTempChatConfirmOpen(false)}
         />
       </div>
       <ToastContainer />
