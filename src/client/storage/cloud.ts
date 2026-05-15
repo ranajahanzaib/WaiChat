@@ -41,12 +41,13 @@ export class CloudStorage implements StorageAdapter {
   }
 
   async saveMessage(msg: Omit<Message, "id" | "created_at"> & { id?: string }): Promise<Message> {
-    // Messages are saved server-side during /api/chat — nothing to do here
-    return {
-      ...msg,
-      id: msg.id || crypto.randomUUID(),
-      created_at: Date.now(),
-    };
+    const res = await fetch(`/api/conversations/${msg.conversation_id}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(msg),
+    });
+    if (!res.ok) throw new Error("Failed to save message");
+    return res.json();
   }
 
   async updateConversationTitle(id: string, title: string): Promise<void> {
@@ -82,6 +83,12 @@ export class CloudStorage implements StorageAdapter {
     if (!res.ok) {
       const errorData = (await res.json().catch(() => ({}))) as { error?: string };
       throw new Error(errorData.error || "Import failed");
+    }
+  }
+  async clear(): Promise<void> {
+    const res = await fetch("/api/conversations", { method: "DELETE" });
+    if (!res.ok) {
+      throw new Error("Failed to clear cloud conversations");
     }
   }
 }

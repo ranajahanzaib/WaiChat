@@ -33,6 +33,8 @@ https://github.com/user-attachments/assets/e62c3a84-aa5d-4d24-be3f-f162115db89a
 - **Smart streaming** - real-time output with beautifully parsed, collapsible `<think>` blocks for reasoning models, stop generation at any time, and retry or edit-and-regenerate any message
 - **Rich message rendering** - enhanced Markdown support with syntax-highlighted, actionable code blocks
 - **Flexible workspaces** - instantly toggle between cloud (Cloudflare D1) and local (browser localStorage) environments, with full conversation portability between the two
+- **Temporary Chat** - start a private session with configurable auto-expiration (1h, 6h, 24h, or Instant). Ephemeral data is stored locally with automatic TTL-based cleanup, and can be promoted to your permanent workspace at any time.
+- **Persistent drafts** - your unsent prompts are preserved across conversation switches and navigation, ensuring you never lose your work.
 - **System prompts** - per-workspace system prompt support with optional cloud sync
 - **Branching conversations** - navigate and restore previous conversation states via history branching
 - **Chat management** - collapsible sidebar, auto-generated titles, deep-linked URLs, per-message deletion, and one-click copy for prompts and responses
@@ -111,10 +113,11 @@ See [docs/self-hosting.md](./docs/self-hosting.md) for a step-by-step setup guid
 
 ## Storage
 
-| Mode      | How it works                                                                    |
-| --------- | ------------------------------------------------------------------------------- |
-| **Cloud** | Chat history stored in Cloudflare D1 (SQLite). Default.                         |
-| **Local** | Chat history stored in your browser's localStorage. No data leaves your device. |
+| Mode          | How it works                                                                    |
+| ------------- | ------------------------------------------------------------------------------- |
+| **Cloud**     | Chat history stored in Cloudflare D1 (SQLite). Default.                         |
+| **Local**     | Chat history stored in your browser's localStorage. No data leaves your device. |
+| **Temporary** | Configurable auto-expiry (1h to 24h). Wiped automatically via TTL.              |
 
 Toggle between modes in the app settings.
 

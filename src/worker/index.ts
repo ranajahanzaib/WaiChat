@@ -18,7 +18,7 @@ import {
   updateConversationTimestamp,
   updateConversationTitle,
 } from "./db";
-import type { ChatRequest, Env, Model } from "./types";
+import type { ChatRequest, Env, Message, Model } from "./types";
 
 // Isolate-specific in-memory cache for models
 let modelCache: { data: Model[]; timestamp: number } | null = null;
@@ -416,6 +416,59 @@ app.patch("/api/conversations/:id", async (c) => {
 });
 
 // Delete a single message (with recursive soft-delete logic for its sub-tree)
+app.post("/api/conversations/:conversationId/messages", async (c) => {
+  const conversationId = c.req.param("conversationId");
+  const body = await c.req.json<Message>();
+  const db = c.env.DB;
+
+  if (body.conversation_id && body.conversation_id !== conversationId) {
+    return c.json({ error: "Conversation ID mismatch" }, 400);
+  }
+
+  if (!body.role || !body.content) {
+    return c.json({ error: "Role and content are required" }, 400);
+  }
+
+  const conversation = await getConversation(db, conversationId);
+  if (!conversation) {
+    return c.json({ error: "Conversation not found" }, 404);
+  }
+
+  const messageId = body.id || crypto.randomUUID();
+  const createdAt = body.created_at || Date.now();
+  const now = Date.now();
+
+  await db
+    .prepare(
+      "INSERT INTO messages (id, conversation_id, role, content, created_at, model, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET content=excluded.content, model=COALESCE(excluded.model, messages.model)",
+    )
+    .bind(
+      messageId,
+      conversationId,
+      body.role,
+      body.content,
+      createdAt,
+      body.model || null,
+      body.parent_id || null,
+    )
+    .run();
+
+  // Update conversation timestamp
+  await db
+    .prepare("UPDATE conversations SET updated_at = ? WHERE id = ?")
+    .bind(now, conversationId)
+    .run();
+
+  const fullMessage: Message = {
+    ...body,
+    id: messageId,
+    conversation_id: conversationId,
+    created_at: createdAt,
+  };
+
+  return c.json(fullMessage);
+});
+
 app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) => {
   const { conversationId, messageId } = c.req.param();
   const db = c.env.DB;

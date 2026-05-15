@@ -1,3 +1,4 @@
+import { HatGlasses, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./components/ChatInput";
 import MessageList from "./components/MessageList";
@@ -34,6 +35,8 @@ export default function App() {
   });
 
   const [pendingPrompt, setPendingPrompt] = useState("");
+  const [inputValue, setInputValue] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -88,12 +91,27 @@ export default function App() {
   const pendingSelectionRef = useRef<string | null>(null);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
 
-  const handleStorageToggle = useCallback((next: StorageMode) => {
-    setStorageMode(next);
-    setSavedStorageMode(next); // Sync saved mode when manually toggled
-    localStorage.setItem(STORAGE_MODE_KEY, next);
-    setStorageDropdownOpen(false);
-  }, []);
+  const isTemporaryChat = storageMode === "temporary";
+
+  const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
+    useTransfer();
+
+  const { models, refreshModels } = useModels();
+  const [defaultModel, setDefaultModel] = useState(
+    () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
+  );
+  const [systemPrompt, setSystemPrompt] = useState(
+    () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
+  );
+  const [syncSettings, setSyncSettings] = useState(
+    () =>
+      (localStorage.getItem(SYNC_SETTINGS_KEY) ??
+        localStorage.getItem("waichat:sync-system-prompt")) === "true",
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tempExpiry, setTempExpiry] = useState(
+    () => localStorage.getItem("waichat:temp-expiry") || "1h",
+  );
 
   const {
     conversations,
@@ -117,31 +135,70 @@ export default function App() {
     renameConversation,
     streamingConversationId,
     streamingStorageMode,
-  } = useChat(storageMode, pendingSelectionRef, handleStorageToggle);
+  } = useChat(storageMode, pendingSelectionRef, (mode) => {
+    handleStorageToggle(mode);
+  });
+
+  const activeConversationIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversation?.id || null;
+  }, [activeConversation?.id]);
+
+  const handleTempExpiryChange = useCallback((val: string) => {
+    setTempExpiry(val);
+    localStorage.setItem("waichat:temp-expiry", val);
+  }, []);
+
+  const handleStorageToggle = useCallback((next: StorageMode) => {
+    setStorageMode(next);
+    if (next !== "temporary") {
+      setSavedStorageMode(next);
+      localStorage.setItem(STORAGE_MODE_KEY, next);
+    }
+    setStorageDropdownOpen(false);
+  }, []);
+
+  // Initial Temporary Chat Cleanup (only on mount)
+  useEffect(() => {
+    const runInitialCleanup = async () => {
+      const storage = createStorage("temporary");
+      if (storage.cleanup) {
+        const expiredIds = await storage.cleanup(tempExpiry, true);
+        if (expiredIds.length > 0) {
+          loadConversations();
+        }
+      }
+    };
+    runInitialCleanup();
+  }, []); // Only on mount
+
+  // Recurring Temporary Chat Cleanup
+  useEffect(() => {
+    const runCleanup = async () => {
+      const storage = createStorage("temporary");
+      if (storage.cleanup) {
+        const expiredIds = await storage.cleanup(tempExpiry, false);
+        if (expiredIds.length > 0) {
+          const expiredIdsSet = new Set(expiredIds);
+          if (
+            activeConversationIdRef.current &&
+            expiredIdsSet.has(activeConversationIdRef.current)
+          ) {
+            clearConversation();
+          }
+          loadConversations();
+        }
+      }
+    };
+
+    const interval = setInterval(runCleanup, 60000);
+    return () => clearInterval(interval);
+  }, [loadConversations, tempExpiry, clearConversation]);
 
   const isStreamingHere =
     isStreaming &&
     activeConversation?.id === streamingConversationId &&
     storageMode === streamingStorageMode;
-
-  const { transferState, initiateMove, executeMove, cancelMove, retryPendingCloudDeletes } =
-    useTransfer();
-
-  const { models, refreshModels } = useModels();
-  const [defaultModel, setDefaultModel] = useState(
-    () => localStorage.getItem(DEFAULT_MODEL_KEY) ?? DEFAULT_MODEL_ID,
-  );
-  const [systemPrompt, setSystemPrompt] = useState(
-    () => localStorage.getItem(SYSTEM_PROMPT_KEY) ?? "",
-  );
-  const [syncSettings, setSyncSettings] = useState(
-    () =>
-      (localStorage.getItem(SYNC_SETTINGS_KEY) ??
-        localStorage.getItem("waichat:sync-system-prompt")) === "true",
-  );
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Storage dropdown state for mobile-friendly click toggling
 
   // Sidebar state: Open by default on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -190,6 +247,15 @@ export default function App() {
   }, [syncSettings]);
 
   const initialLoadDone = useRef(false);
+
+  // Clear URL when switching to Temporary mode
+  useEffect(() => {
+    if (isTemporaryChat) {
+      if (window.location.pathname !== "/") {
+        window.history.pushState({}, "", "/");
+      }
+    }
+  }, [isTemporaryChat]);
 
   // Safely parse the new URL format on initial render
   useEffect(() => {
@@ -244,6 +310,7 @@ export default function App() {
 
   // Update the URL format to include the storage mode
   useEffect(() => {
+    if (isTemporaryChat) return; // Don't update URL for temporary chats
     const currentPath = window.location.pathname;
     if (activeConversation) {
       const expectedPath = `/c/${storageMode}/${activeConversation.id}`;
@@ -253,7 +320,7 @@ export default function App() {
     } else if (currentPath !== "/") {
       window.history.pushState({}, "", "/");
     }
-  }, [activeConversation, storageMode]);
+  }, [activeConversation, storageMode, isTemporaryChat]);
 
   // Close storage dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -285,26 +352,38 @@ export default function App() {
   };
 
   const handleSelectConversation = (id: string) => {
+    // Save current input to its draft key before switching
+    const currentKey = activeConversation?.id || "new";
+    const nextDraft = drafts[id] || "";
+
+    setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
     selectConversation(id);
+    setInputValue(nextDraft);
     closeSidebarOnMobile();
   };
 
-  // Wrapper for new chat with mode support
-  const handleNew = async (targetMode: StorageMode = storageMode) => {
-    if (targetMode !== storageMode) {
-      // User opted to return to their default mode. We toggle state and reset home.
-      handleStorageToggle(targetMode);
+  const handleNew = async (targetMode?: StorageMode) => {
+    // Save current input draft before switching
+    const currentKey = activeConversation?.id || "new";
+    const nextNewDraft = drafts["new"] || "";
+
+    setDrafts((prev) => ({ ...prev, [currentKey]: inputValue }));
+
+    const finalMode = targetMode ?? storageMode;
+    if (finalMode !== storageMode) {
+      handleStorageToggle(finalMode);
       clearConversation();
       window.history.pushState({}, "", "/");
     } else {
-      // Standard new chat in the current mode
       // Prevent creating multiple empty chats if the current one is already empty
       if (activeConversation && messages.length === 0) {
         closeSidebarOnMobile();
         return;
       }
-      await newConversation(defaultModel);
+      clearConversation();
+      window.history.pushState({}, "", "/");
     }
+    setInputValue(nextNewDraft);
     closeSidebarOnMobile();
   };
 
@@ -312,12 +391,19 @@ export default function App() {
     if (isStreaming) return;
     const currentModel = activeConversation?.model ?? defaultModel;
     if (!activeConversation) {
-      const convo = await newConversation(defaultModel);
+      const convo = await newConversation(defaultModel, storageMode);
       await sendMessage(content, defaultModel, convo.id, storageMode, systemPrompt);
     } else {
       await sendMessage(content, currentModel, activeConversation.id, storageMode, systemPrompt);
     }
+    setInputValue("");
+    const key = activeConversation?.id || "new";
+    setDrafts((prev) => ({ ...prev, [key]: "" }));
   };
+
+  const handleInputChange = useCallback((val: string) => {
+    setInputValue(val);
+  }, []);
 
   const handleDefaultModelChange = async (m: string, sync: boolean = syncSettings) => {
     setDefaultModel(m);
@@ -365,19 +451,16 @@ export default function App() {
   };
 
   const handleClearConversations = async (mode: StorageMode) => {
-    if (mode === "cloud") {
-      await fetch("/api/conversations", { method: "DELETE" });
-    } else {
-      const keys = Object.keys(localStorage).filter(
-        (k) => k.startsWith("waichat:conversations") || k.startsWith("waichat:messages:"),
-      );
-      keys.forEach((k) => localStorage.removeItem(k));
+    const storage = createStorage(mode);
+    if (storage.clear) {
+      await storage.clear();
     }
     await loadConversations();
   };
 
-  const handleMoveConversation = async (conversationId: string) => {
-    const targetMode: StorageMode = storageMode === "cloud" ? "local" : "cloud";
+  const handleMoveConversation = async (conversationId: string, forcedTargetMode?: StorageMode) => {
+    const targetMode: StorageMode =
+      forcedTargetMode || (storageMode === "cloud" ? "local" : "cloud");
 
     try {
       // Prefetch the source data
@@ -386,7 +469,10 @@ export default function App() {
       // Execute the move
       const movedId = await executeMove(storageMode, targetMode);
 
-      toast.success(`Chat moved to ${targetMode === "cloud" ? "Cloud" : "Local"} successfully!`);
+      const actionText = storageMode === "temporary" ? "saved" : "moved";
+      toast.success(
+        `Chat ${actionText} to ${targetMode === "cloud" ? "Cloud" : "Local"} successfully!`,
+      );
 
       // If the moved conversation was the active one, clear it
       if (activeConversation?.id === conversationId) {
@@ -583,14 +669,17 @@ export default function App() {
           onMove={handleMoveConversation}
           onRename={renameConversation}
           onSettingsOpen={() => setSettingsOpen(true)}
+          onModeChange={handleStorageToggle}
           currentMode={storageMode}
+          tempExpiry={tempExpiry}
+          onTempExpiryChange={handleTempExpiryChange}
           savedMode={savedStorageMode}
           streamingConversationId={streamingConversationId}
           streamingStorageMode={streamingStorageMode}
           movingConversationId={transferState.conversationId}
         />
 
-        <main className="flex flex-col flex-1 min-w-0 h-full">
+        <main className="flex flex-col flex-1 min-w-0 h-full relative">
           {/* TOPBAR */}
           <header className="flex items-center justify-between px-5 py-4 border-b-[0.5px] border-black/5 dark:border-white/10 shrink-0 transition-colors duration-300">
             <div className="flex items-center gap-3">
@@ -614,13 +703,21 @@ export default function App() {
 
               <div
                 className={`flex items-center gap-2 border-[0.5px] border-black/5 dark:border-white/10 rounded-full pl-3 pr-2 py-1.5 transition-all ${
-                  storageMode === "cloud"
-                    ? "bg-brand-cloud/10 hover:bg-brand-cloud/20 dark:bg-brand-cloud/15 dark:hover:bg-brand-cloud/25"
-                    : "bg-brand-local/10 hover:bg-brand-local/20 dark:bg-brand-local/15 dark:hover:bg-brand-local/25"
+                  isTemporaryChat
+                    ? "bg-slate-500/10 hover:bg-slate-500/20 dark:bg-slate-500/15 dark:hover:bg-slate-500/25"
+                    : storageMode === "cloud"
+                      ? "bg-brand-cloud/10 hover:bg-brand-cloud/20 dark:bg-brand-cloud/15 dark:hover:bg-brand-cloud/25"
+                      : "bg-brand-local/10 hover:bg-brand-local/20 dark:bg-brand-local/15 dark:hover:bg-brand-local/25"
                 }`}
               >
                 <div
-                  className={`w-2 h-2 rounded-full ${storageMode === "cloud" ? "bg-brand-cloud" : "bg-brand-local"}`}
+                  className={`w-2 h-2 rounded-full ${
+                    isTemporaryChat
+                      ? "bg-slate-500 shadow-sm shadow-slate-500/50"
+                      : storageMode === "cloud"
+                        ? "bg-brand-cloud"
+                        : "bg-brand-local"
+                  }`}
                 ></div>
                 <div className="flex-1 min-w-0">
                   <ModelPicker
@@ -637,15 +734,17 @@ export default function App() {
               <div className="relative storage-dropdown-container shrink-0">
                 <button
                   onClick={() => setStorageDropdownOpen(!storageDropdownOpen)}
-                  className="flex items-center gap-2 bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-[0.5px] border-black/5 dark:border-white/10 rounded-full px-3 py-1.5 text-gray-700 hover:text-gray-900 dark:text-white/65 dark:hover:text-white/95 text-xs md:text-sm font-medium cursor-pointer transition-all focus:outline-none"
+                  className={`flex items-center gap-2 bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-[0.5px] border-black/5 dark:border-white/10 rounded-full px-3 py-1.5 text-gray-700 hover:text-gray-900 dark:text-white/65 dark:hover:text-white/95 text-xs md:text-sm font-medium transition-all focus:outline-none cursor-pointer`}
                   aria-expanded={storageDropdownOpen}
                 >
-                  {storageMode === "cloud" ? (
+                  {isTemporaryChat ? (
+                    <div className="w-2 h-2 rounded-full bg-slate-500 shadow-sm shadow-slate-500/30 dark:shadow-slate-500/50"></div>
+                  ) : storageMode === "cloud" ? (
                     <div className="w-2 h-2 rounded-full bg-brand-cloud shadow-sm shadow-brand-cloud/30 dark:shadow-brand-cloud/50"></div>
                   ) : (
                     <div className="w-2 h-2 rounded-full bg-brand-local shadow-sm shadow-brand-local/30 dark:shadow-brand-local/50"></div>
                   )}
-                  {storageMode === "cloud" ? "Cloud" : "Local"}
+                  {isTemporaryChat ? "Temporary" : storageMode === "cloud" ? "Cloud" : "Local"}
                   <svg className="w-3 h-3 ml-1" viewBox="0 0 12 12" fill="currentColor">
                     <path d="M6 8L1 3h10z" />
                   </svg>
@@ -659,7 +758,7 @@ export default function App() {
                       : "opacity-0 scale-95 invisible"
                   }`}
                 >
-                  {(["cloud", "local"] as StorageMode[]).map((mode) => (
+                  {(["cloud", "local", "temporary"] as StorageMode[]).map((mode) => (
                     <button
                       key={mode}
                       role="menuitem"
@@ -668,7 +767,9 @@ export default function App() {
                         storageMode === mode
                           ? mode === "cloud"
                             ? "bg-brand-cloud/10 dark:bg-brand-cloud/20"
-                            : "bg-brand-local/10 dark:bg-brand-local/20"
+                            : mode === "local"
+                              ? "bg-brand-local/10 dark:bg-brand-local/20"
+                              : "bg-slate-500/10 dark:bg-slate-500/20"
                           : "hover:bg-black/5 dark:hover:bg-white/10"
                       }`}
                     >
@@ -677,43 +778,56 @@ export default function App() {
                           storageMode === mode
                             ? mode === "cloud"
                               ? "text-brand-cloud"
-                              : "text-brand-local"
+                              : mode === "local"
+                                ? "text-brand-local"
+                                : "text-slate-500"
                             : "text-gray-900 dark:text-white/95"
                         }`}
                       >
-                        {mode === "cloud" ? "Cloud (D1)" : "Local (Browser)"}
+                        {mode === "cloud"
+                          ? "Cloud (D1)"
+                          : mode === "local"
+                            ? "Local (Browser)"
+                            : "Temporary (Memory)"}
                       </p>
                       <p
                         className={`text-[11px] md:text-xs mt-0.5 ${
                           storageMode === mode
                             ? mode === "cloud"
                               ? "text-brand-cloud/70"
-                              : "text-brand-local/70"
+                              : mode === "local"
+                                ? "text-brand-local/70"
+                                : "text-slate-500/70"
                             : "text-gray-500 dark:text-white/40"
                         }`}
                       >
-                        {mode === "cloud" ? "Syncs across devices" : "Stays in your browser"}
+                        {mode === "cloud"
+                          ? "Syncs across devices"
+                          : mode === "local"
+                            ? "Stays in your browser"
+                            : "Won't be saved"}
                       </p>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <button
-                onClick={() => handleNew(storageMode)}
-                className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
-                title="New Chat"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  className="w-5 h-5 stroke-2"
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleStorageToggle("temporary")}
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-slate-600 hover:bg-slate-50 dark:text-white/65 dark:hover:text-slate-400 dark:hover:bg-slate-500/10 transition-colors focus:outline-none"
+                  title="Temporary Chat"
                 >
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-              </button>
+                  <HatGlasses size={18} strokeWidth={2} />
+                </button>
+                <button
+                  onClick={() => handleNew(storageMode)}
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 dark:text-white/65 dark:hover:text-white/95 dark:hover:bg-white/5 transition-colors focus:outline-none"
+                  title="New Chat"
+                >
+                  <SquarePen size={18} strokeWidth={2} />
+                </button>
+              </div>
             </div>
           </header>
 
@@ -748,6 +862,8 @@ export default function App() {
           />
           <ChatInput
             onSend={handleSend}
+            value={inputValue}
+            onChange={handleInputChange}
             isGenerating={isStreaming}
             isStreamingHere={isStreamingHere}
             streamingStorageMode={streamingStorageMode}
@@ -775,6 +891,8 @@ export default function App() {
           theme={theme}
           onThemeChange={setTheme}
           refreshModels={refreshModels}
+          tempExpiry={tempExpiry}
+          onTempExpiryChange={handleTempExpiryChange}
         />
       </div>
       <ToastContainer />
