@@ -33,6 +33,8 @@ https://github.com/user-attachments/assets/e62c3a84-aa5d-4d24-be3f-f162115db89a
 - **Smart streaming** - real-time output with beautifully parsed, collapsible `<think>` blocks for reasoning models, stop generation at any time, and retry or edit-and-regenerate any message
 - **Rich message rendering** - enhanced Markdown support with syntax-highlighted, actionable code blocks
 - **Flexible workspaces** - instantly toggle between cloud (Cloudflare D1) and local (browser localStorage) environments, with full conversation portability between the two
+- **Temporary Chat** - start an incognito session that stays in-memory and is wiped upon closing, with one-click "Save Chat" to move ephemeral data to your permanent workspace
+- **Persistent drafts** - your unsent prompts are saved when switching to new chats, ensuring you never lose your work when navigating between conversations
 - **System prompts** - per-workspace system prompt support with optional cloud sync
 - **Branching conversations** - navigate and restore previous conversation states via history branching
 - **Chat management** - collapsible sidebar, auto-generated titles, deep-linked URLs, per-message deletion, and one-click copy for prompts and responses
@@ -111,10 +113,11 @@ See [docs/self-hosting.md](./docs/self-hosting.md) for a step-by-step setup guid
 
 ## Storage
 
-| Mode      | How it works                                                                    |
-| --------- | ------------------------------------------------------------------------------- |
-| **Cloud** | Chat history stored in Cloudflare D1 (SQLite). Default.                         |
-| **Local** | Chat history stored in your browser's localStorage. No data leaves your device. |
+| Mode          | How it works                                                                    |
+| ------------- | ------------------------------------------------------------------------------- |
+| **Cloud**     | Chat history stored in Cloudflare D1 (SQLite). Default.                         |
+| **Local**     | Chat history stored in your browser's localStorage. No data leaves your device. |
+| **Temporary** | In-memory only. Wiped on exit. Great for quick, sensitive questions.            |
 
 Toggle between modes in the app settings.
 
