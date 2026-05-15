@@ -421,6 +421,10 @@ app.post("/api/conversations/:conversationId/messages", async (c) => {
   const body = await c.req.json<Message>();
   const db = c.env.DB;
 
+  if (body.conversation_id && body.conversation_id !== conversationId) {
+    return c.json({ error: "Conversation ID mismatch" }, 400);
+  }
+
   if (!body.role || !body.content) {
     return c.json({ error: "Role and content are required" }, 400);
   }

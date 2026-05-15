@@ -432,13 +432,12 @@ export function useChat(
                   ),
                 );
 
-                // Periodic persistence for local/temporary mode
-                if (
-                  storageMode !== "cloud" &&
-                  (fullContent.length % 50 === 0 || fullContent.length < 50)
-                ) {
-                  const s = createStorage(storageMode);
-                  s.saveMessage({
+                const isLocalOrTemp = currentStorageMode !== "cloud";
+                const shouldSave = fullContent.length > 0 && fullContent.length % 50 === 0;
+
+                if (isLocalOrTemp && shouldSave) {
+                  const s = createStorage(currentStorageMode);
+                  await s.saveMessage({
                     ...streamingDataRef.current!.assistantMessage,
                     content: fullContent,
                   });

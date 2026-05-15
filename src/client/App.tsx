@@ -248,6 +248,15 @@ export default function App() {
 
   const initialLoadDone = useRef(false);
 
+  // Clear URL when switching to Temporary mode
+  useEffect(() => {
+    if (isTemporaryChat) {
+      if (window.location.pathname !== "/") {
+        window.history.pushState({}, "", "/");
+      }
+    }
+  }, [isTemporaryChat]);
+
   // Safely parse the new URL format on initial render
   useEffect(() => {
     if (initialLoadDone.current) return;
