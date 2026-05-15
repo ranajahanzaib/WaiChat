@@ -113,6 +113,11 @@ export default function App() {
     () => localStorage.getItem("waichat:temp-expiry") || "1h",
   );
 
+  const handleTempExpiryChange = useCallback((val: string) => {
+    setTempExpiry(val);
+    localStorage.setItem("waichat:temp-expiry", val);
+  }, []);
+
   const handleStorageToggle = useCallback((next: StorageMode) => {
     setStorageMode(next);
     if (next !== "temporary") {
@@ -323,7 +328,6 @@ export default function App() {
 
   const handleSelectConversation = (id: string) => {
     selectConversation(id);
-    setInputValue(""); // Clear prompt when switching to an existing chat
     closeSidebarOnMobile();
   };
 
@@ -360,13 +364,16 @@ export default function App() {
     }
   };
 
-  const handleInputChange = (val: string) => {
-    setInputValue(val);
-    // If we're in a new chat, update the draft
-    if (!activeConversation) {
-      setNewChatDraft(val);
-    }
-  };
+  const handleInputChange = useCallback(
+    (val: string) => {
+      setInputValue(val);
+      // If we're in a new chat, update the draft
+      if (!activeConversation) {
+        setNewChatDraft(val);
+      }
+    },
+    [activeConversation],
+  );
 
   const handleDefaultModelChange = async (m: string, sync: boolean = syncSettings) => {
     setDefaultModel(m);
@@ -635,10 +642,7 @@ export default function App() {
           onModeChange={handleStorageToggle}
           currentMode={storageMode}
           tempExpiry={tempExpiry}
-          onTempExpiryChange={(val) => {
-            setTempExpiry(val);
-            localStorage.setItem("waichat:temp-expiry", val);
-          }}
+          onTempExpiryChange={handleTempExpiryChange}
           savedMode={savedStorageMode}
           streamingConversationId={streamingConversationId}
           streamingStorageMode={streamingStorageMode}
@@ -858,10 +862,7 @@ export default function App() {
           onThemeChange={setTheme}
           refreshModels={refreshModels}
           tempExpiry={tempExpiry}
-          onTempExpiryChange={(val) => {
-            setTempExpiry(val);
-            localStorage.setItem("waichat:temp-expiry", val);
-          }}
+          onTempExpiryChange={handleTempExpiryChange}
         />
       </div>
       <ToastContainer />

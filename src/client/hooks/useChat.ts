@@ -519,11 +519,13 @@ export function useChat(
           userMessage.parent_id,
         );
 
-        // Save whatever we got (full or partial)
-        // Use the current storage mode in case it changed (e.g. saved during streaming)
-        const finalStorage = createStorage(storageModeRef.current);
-        await finalStorage.saveMessage(userMessage);
-        await finalStorage.saveMessage({ ...assistantMessage, content: fullContent });
+        // Save whatever we got (full or partial) - skip for Cloud as worker already saves
+        const finalStorageMode = storageModeRef.current;
+        if (finalStorageMode !== "cloud") {
+          const finalStorage = createStorage(finalStorageMode);
+          await finalStorage.saveMessage(userMessage);
+          await finalStorage.saveMessage({ ...assistantMessage, content: fullContent });
+        }
 
         // Handle auto-titling if needed
         let finalTitle = activeConversation?.title;
@@ -683,8 +685,10 @@ export function useChat(
           userMessage.parent_id,
         );
 
-        await storage.saveMessage(userMessage);
-        await storage.saveMessage({ ...assistantMessage, content: fullContent });
+        if (storageMode !== "cloud") {
+          await storage.saveMessage(userMessage);
+          await storage.saveMessage({ ...assistantMessage, content: fullContent });
+        }
 
         // --- BACKGROUND COMPLETION TOAST ---
         showBackgroundCompletionToast(storageMode, conversationId, activeConversation?.title);
@@ -787,7 +791,9 @@ export function useChat(
           undefined,
         );
 
-        await storage.saveMessage({ ...newAssistantMessage, content: fullContent });
+        if (storageMode !== "cloud") {
+          await storage.saveMessage({ ...newAssistantMessage, content: fullContent });
+        }
 
         // --- BACKGROUND COMPLETION TOAST ---
         showBackgroundCompletionToast(storageMode, conversationId, activeConversation?.title);
