@@ -221,55 +221,28 @@ export default function App() {
   // Temporary Chat Expiration Cleanup
   useEffect(() => {
     const cleanup = async (isInitial = false) => {
-      const conversations = JSON.parse(
-        localStorage.getItem("waichat:conversations") ?? "[]",
-      ) as Conversation[];
-      const now = Date.now();
+      const storage = createStorage("temporary");
+      if (storage.cleanup) {
+        const expiredIds = await storage.cleanup(tempExpiry, isInitial);
 
-      const expiryDurations = {
-        "1h": 60 * 60 * 1000,
-        "6h": 6 * 60 * 60 * 1000,
-        "24h": 24 * 60 * 60 * 1000,
-      };
+        if (expiredIds.length > 0) {
+          const expiredIdsSet = new Set(expiredIds);
 
-      const expired = conversations.filter((c) => {
-        if (!c.is_temporary) return false;
+          // If the active conversation was deleted, clear it
+          if (activeConversation && expiredIdsSet.has(activeConversation.id)) {
+            clearConversation();
+          }
 
-        // 1. Handle "Instant" - delete on session start or when setting is activated
-        if (tempExpiry === "instant") {
-          return isInitial;
+          // Reload conversations to sync sidebar
+          loadConversations();
         }
-
-        // 2. Handle Duration-based - check against current setting and creation date
-        const duration = expiryDurations[tempExpiry as keyof typeof expiryDurations] || 3600000;
-        const createdAt = c.created_at || now;
-        return createdAt + duration < now;
-      });
-
-      if (expired.length > 0) {
-        const expiredIds = new Set(expired.map((c) => c.id));
-        const toKeep = conversations.filter((c) => !expiredIds.has(c.id));
-        localStorage.setItem("waichat:conversations", JSON.stringify(toKeep));
-
-        for (const conv of expired) {
-          localStorage.removeItem(`waichat:messages:${conv.id}`);
-          localStorage.removeItem(`waichat:versions:${conv.id}`);
-        }
-
-        // If the active conversation was deleted, clear it
-        if (activeConversation && expiredIds.has(activeConversation.id)) {
-          clearConversation();
-        }
-
-        // Reload conversations to sync sidebar
-        loadConversations();
       }
     };
 
     cleanup(true);
     const interval = setInterval(() => cleanup(false), 60000);
     return () => clearInterval(interval);
-  }, [loadConversations, tempExpiry, activeConversation?.id, selectConversation]);
+  }, [loadConversations, tempExpiry, activeConversation?.id, clearConversation]);
 
   const isStreamingHere =
     isStreaming &&
@@ -511,13 +484,9 @@ export default function App() {
   };
 
   const handleClearConversations = async (mode: StorageMode) => {
-    if (mode === "cloud") {
-      await fetch("/api/conversations", { method: "DELETE" });
-    } else {
-      const keys = Object.keys(localStorage).filter(
-        (k) => k.startsWith("waichat:conversations") || k.startsWith("waichat:messages:"),
-      );
-      keys.forEach((k) => localStorage.removeItem(k));
+    const storage = createStorage(mode);
+    if (storage.clear) {
+      await storage.clear();
     }
     await loadConversations();
   };

@@ -79,19 +79,6 @@ export class LocalStorage implements StorageAdapter {
     return conversation;
   }
 
-  async clear(): Promise<void> {
-    const conversations = this.getConversationsRaw();
-    const toDelete = conversations.filter((c) => c.is_temporary);
-    const toKeep = conversations.filter((c) => !c.is_temporary);
-
-    for (const conv of toDelete) {
-      localStorage.removeItem(MESSAGES_KEY(conv.id));
-      localStorage.removeItem(`waichat:versions:${conv.id}`);
-    }
-
-    this.setConversations(toKeep);
-  }
-
   async deleteConversation(id: string): Promise<void> {
     const conversations = this.getConversationsRaw().filter((c) => c.id !== id);
     this.setConversations(conversations);
@@ -194,5 +181,60 @@ export class LocalStorage implements StorageAdapter {
     });
     this.setConversations(existing);
     this.setMessages(conversation.id, messages);
+  }
+
+  async cleanup(expirySetting: string, isInitial: boolean): Promise<string[]> {
+    if (!this.isTemporary) return [];
+
+    const conversations = this.getConversationsRaw();
+    const now = Date.now();
+    const expiryDurations: Record<string, number> = {
+      "1h": 60 * 60 * 1000,
+      "6h": 6 * 60 * 60 * 1000,
+      "24h": 24 * 60 * 60 * 1000,
+    };
+
+    const expired = conversations.filter((c) => {
+      if (!c.is_temporary) return false;
+
+      // 1. Handle "Instant" - delete on session start or when setting is activated
+      if (expirySetting === "instant") {
+        return isInitial;
+      }
+
+      // 2. Handle Duration-based - check against current setting and creation date
+      const duration = expiryDurations[expirySetting] || 3600000;
+      const createdAt = c.created_at || now;
+      return createdAt + duration < now;
+    });
+
+    if (expired.length === 0) return [];
+
+    const expiredIds = new Set(expired.map((c) => c.id));
+    const toKeep = conversations.filter((c) => !expiredIds.has(c.id));
+    this.setConversations(toKeep);
+
+    for (const conv of expired) {
+      localStorage.removeItem(MESSAGES_KEY(conv.id));
+      localStorage.removeItem(`waichat:versions:${conv.id}`);
+    }
+
+    return Array.from(expiredIds);
+  }
+
+  async clear(): Promise<void> {
+    const conversations = this.getConversationsRaw();
+    const toKeep = conversations.filter((c) =>
+      this.isTemporary ? !c.is_temporary : c.is_temporary,
+    );
+    this.setConversations(toKeep);
+
+    const toDelete = conversations.filter((c) =>
+      this.isTemporary ? !!c.is_temporary : !c.is_temporary,
+    );
+    for (const conv of toDelete) {
+      localStorage.removeItem(MESSAGES_KEY(conv.id));
+      localStorage.removeItem(`waichat:versions:${conv.id}`);
+    }
   }
 }

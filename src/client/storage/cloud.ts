@@ -85,4 +85,10 @@ export class CloudStorage implements StorageAdapter {
       throw new Error(errorData.error || "Import failed");
     }
   }
+  async clear(): Promise<void> {
+    const res = await fetch("/api/conversations", { method: "DELETE" });
+    if (!res.ok) {
+      throw new Error("Failed to clear cloud conversations");
+    }
+  }
 }

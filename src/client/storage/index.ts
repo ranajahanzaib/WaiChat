@@ -39,6 +39,7 @@ export interface StorageAdapter {
   ): Promise<{ conversation: Conversation; messages: Message[] } | null>;
   importConversation(conversation: Conversation, messages: Message[]): Promise<void>;
   clear?(): Promise<void>;
+  cleanup?(expirySetting: string, isInitial: boolean): Promise<string[]>;
 }
 
 export type StorageMode = "cloud" | "local" | "temporary";
