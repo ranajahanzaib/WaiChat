@@ -22,6 +22,10 @@ const DEFAULT_MODEL_KEY = "waichat:default-model";
 export const THEME_KEY = "waichat:theme";
 const MOBILE_BREAKPOINT = 768;
 
+const generateFallbackTitle = (content: string) => {
+  return content.split(" ").slice(0, 5).join(" ") + (content.split(" ").length > 5 ? "..." : "");
+};
+
 export type ThemeMode = "system" | "light" | "dark";
 
 export default function App() {
@@ -171,7 +175,7 @@ export default function App() {
     if (!activeConversation) return;
 
     try {
-      const targetMode = savedStorageMode === "temporary" ? "cloud" : savedStorageMode;
+      const targetMode = savedStorageMode;
       const targetStorage = createStorage(targetMode);
 
       // We already have the data in scope from useChat
@@ -191,13 +195,10 @@ export default function App() {
               body: JSON.stringify({ message: firstUserMsg.content }),
             });
             const titleData = (await titleRes.json()) as { title?: string };
-            if (titleData.title) {
-              data.conversation.title = titleData.title;
-            } else {
-              data.conversation.title = firstUserMsg.content.split(" ").slice(0, 5).join(" ");
-            }
+            data.conversation.title =
+              titleData.title || generateFallbackTitle(firstUserMsg.content);
           } catch (err) {
-            data.conversation.title = firstUserMsg.content.split(" ").slice(0, 5).join(" ");
+            data.conversation.title = generateFallbackTitle(firstUserMsg.content);
           }
         }
       }

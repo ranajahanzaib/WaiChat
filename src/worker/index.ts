@@ -421,12 +421,17 @@ app.post("/api/conversations/:conversationId/messages", async (c) => {
   const body = await c.req.json<Message>();
   const db = c.env.DB;
 
+  if (!body.role || !body.content) {
+    return c.json({ error: "Role and content are required" }, 400);
+  }
+
   const conversation = await getConversation(db, conversationId);
   if (!conversation) {
     return c.json({ error: "Conversation not found" }, 404);
   }
 
   const messageId = body.id || crypto.randomUUID();
+  const createdAt = body.created_at || Date.now();
   const now = Date.now();
 
   await db
@@ -438,7 +443,7 @@ app.post("/api/conversations/:conversationId/messages", async (c) => {
       conversationId,
       body.role,
       body.content,
-      body.created_at || now,
+      createdAt,
       body.model || null,
       body.parent_id || null,
     )
@@ -450,7 +455,14 @@ app.post("/api/conversations/:conversationId/messages", async (c) => {
     .bind(now, conversationId)
     .run();
 
-  return c.json({ id: messageId, created_at: now });
+  const fullMessage: Message = {
+    ...body,
+    id: messageId,
+    conversation_id: conversationId,
+    created_at: createdAt,
+  };
+
+  return c.json(fullMessage);
 });
 
 app.delete("/api/conversations/:conversationId/messages/:messageId", async (c) => {

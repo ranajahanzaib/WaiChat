@@ -667,7 +667,7 @@ export function useChat(
           assistantMessage.id,
           conversationId,
           model,
-          storageMode === "temporary" ? "local" : (storageMode as any),
+          storageMode === "temporary" ? "local" : storageMode,
           abortController.signal,
           systemPrompt,
           assistantMessage.parent_id,
